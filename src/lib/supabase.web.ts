@@ -1,5 +1,5 @@
 // Supabase client for the web build.
-// The web build renders on a server first (app.json web.output = "server"),
+// The web build may be pre-rendered without a browser (no window),
 // where there is no browser storage, so sessions are only stored in the browser.
 import { createClient } from '@supabase/supabase-js';
 
