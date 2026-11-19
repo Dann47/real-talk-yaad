@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "real-talk-yaad",
+    "name": "Real Talk Yaad",
     "slug": "real-talk-yaad",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B6E4F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -21,14 +21,17 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Real Talk Yaad",
+      "shortName": "Real Talk Yaad",
+      "description": "Teach AI real Jamaican Patois and get paid."
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#0B6E4F",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

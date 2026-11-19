@@ -9,18 +9,36 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#0F1A14',
+    background: '#FFFFFF',
+    backgroundElement: '#F3F7F4',
+    backgroundSelected: '#DCE5DF',
+    textSecondary: '#4B5B52',
+    // Accent colours are replaced at runtime by the user's choice (see useTheme).
+    accent: '#0B6E4F',
+    onAccent: '#FFFFFF',
+    accentText: '#0B6E4F',
+    accentSoft: '#DBEBE5',
+    // Money and rewards always use gold, whatever the accent.
+    reward: '#F2B705',
+    onReward: '#1A1400',
+    danger: '#B42318',
+    media: '#1F3A2E',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F4F5F7',
+    background: '#0E0F12',
+    backgroundElement: '#1A1C22',
+    backgroundSelected: '#2A2D35',
+    textSecondary: '#A3A8B3',
+    accent: '#0B6E4F',
+    onAccent: '#FFFFFF',
+    accentText: '#4DA88A',
+    accentSoft: '#0F1F19',
+    reward: '#F2B705',
+    onReward: '#1A1400',
+    danger: '#FF8A80',
+    media: '#22252D',
   },
 } as const;
 
