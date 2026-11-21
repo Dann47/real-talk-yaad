@@ -41,6 +41,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "secrets:dev": "node scripts/push-secrets.mjs .env.development",
+    "secrets:prod": "node scripts/push-secrets.mjs .env.production",
     "lint": "expo lint"
   },
   "private": true

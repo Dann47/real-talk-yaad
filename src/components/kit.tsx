@@ -5,16 +5,19 @@
 import { router, type Href } from 'expo-router';
 import Head from 'expo-router/head';
 import { SymbolView } from 'expo-symbols';
-import type { ComponentProps, ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type StyleProp,
+  type TextInputProps,
   type TextProps,
   type TextStyle,
   type ViewStyle,
@@ -429,6 +432,89 @@ export function ListRow({
   );
 }
 
+/* ---------- Forms ---------- */
+
+/** Labelled text box with focus ring, error message and an optional show/hide toggle for passwords. */
+export function TextField({
+  label,
+  error,
+  hint,
+  secure,
+  onFocus,
+  onBlur,
+  ...input
+}: TextInputProps & { label: string; error?: string | null; hint?: string; secure?: boolean }) {
+  const theme = useTheme();
+  const [hidden, setHidden] = useState(true);
+  const [focused, setFocused] = useState(false);
+  const borderColor = error ? theme.danger : focused ? theme.accent : theme.backgroundSelected;
+
+  return (
+    <View style={styles.field}>
+      <T variant="smallStrong">{label}</T>
+      <View style={[styles.fieldBox, { borderColor, backgroundColor: theme.backgroundElement }]}>
+        <TextInput
+          accessibilityLabel={label}
+          accessibilityHint={error ?? hint}
+          placeholderTextColor={theme.textSecondary}
+          secureTextEntry={secure && hidden}
+          autoCapitalize={secure ? 'none' : input.autoCapitalize}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+          style={[styles.fieldInput, inputText, { color: theme.text }, Platform.OS === 'web' && styles.noOutline]}
+          {...input}
+        />
+        {secure ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+            onPress={() => setHidden(!hidden)}
+            style={styles.fieldToggle}>
+            <T variant="smallStrong" color="accentText">
+              {hidden ? 'Show' : 'Hide'}
+            </T>
+          </Pressable>
+        ) : null}
+      </View>
+      {error ? (
+        <T variant="small" color="danger" accessibilityLiveRegion="polite">
+          {error}
+        </T>
+      ) : hint ? (
+        <T variant="small" color="textSecondary">
+          {hint}
+        </T>
+      ) : null}
+    </View>
+  );
+}
+
+/** A short message box for form results. */
+export function Notice({ text, tone = 'info' }: { text: string; tone?: 'info' | 'error' | 'success' }) {
+  const theme = useTheme();
+  const colors = {
+    info: { bg: theme.accentSoft, fg: theme.text, icon: 'sparkles' as IconName },
+    success: { bg: theme.accentSoft, fg: theme.accentText, icon: 'check' as IconName },
+    error: { bg: theme.backgroundElement, fg: theme.danger, icon: 'shield' as IconName },
+  }[tone];
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.notice, { backgroundColor: colors.bg, borderColor: tone === 'error' ? theme.danger : 'transparent' }]}>
+      <Icon name={colors.icon} size={18} color={colors.fg} />
+      <T variant="small" style={[styles.flex, { color: colors.fg }]}>
+        {text}
+      </T>
+    </View>
+  );
+}
+
 /* ---------- Screen frame ---------- */
 
 export function goBack() {
@@ -475,6 +561,7 @@ export function Screen({
   tabs = false,
   scroll = true,
   gap = 16,
+  stickToBottom = false,
 }: {
   title?: string;
   children: ReactNode;
@@ -483,10 +570,29 @@ export function Screen({
   tabs?: boolean;
   scroll?: boolean;
   gap?: number;
+  /** Chat mode: keep the newest content in view as it grows and when the keyboard opens. */
+  stickToBottom?: boolean;
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    if (isWeb) return;
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => {
+      setKeyboardOpen(true);
+      if (stickToBottom) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+    });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () =>
+      setKeyboardOpen(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [isWeb, stickToBottom]);
   const top = isWeb ? (tabs ? 104 : 28) : insets.top + 8;
   const bottom = tabs ? (isWeb ? 40 : insets.bottom + BottomTabInset + 20) : insets.bottom + 20;
 
@@ -494,7 +600,8 @@ export function Screen({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Android draws edge to edge, so it needs padding too or the keyboard covers the footer.
+      behavior={isWeb ? undefined : 'padding'}
       style={[styles.flex, { backgroundColor: theme.background }]}>
       <Head>
         <title>{title ? `${title} · ${APP_NAME}` : APP_NAME}</title>
@@ -506,6 +613,8 @@ export function Screen({
       ) : null}
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
+          onContentSizeChange={stickToBottom ? () => scrollRef.current?.scrollToEnd({ animated: true }) : undefined}
           style={styles.flex}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -527,7 +636,8 @@ export function Screen({
             styles.centerRow,
             {
               paddingTop: 14,
-              paddingBottom: isWeb ? 20 : insets.bottom + 12,
+              // The keyboard already covers the home-indicator area, so drop that gap while it is open.
+              paddingBottom: isWeb ? 20 : keyboardOpen ? 12 : insets.bottom + 12,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: theme.backgroundSelected,
               backgroundColor: theme.background,
@@ -575,4 +685,10 @@ const styles = StyleSheet.create({
   valuePill: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   sectionAction: { minHeight: 36, paddingHorizontal: 8 },
+  field: { gap: 6 },
+  fieldBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 16, minHeight: 52 },
+  fieldInput: { flex: 1, minHeight: 50, paddingHorizontal: 16 },
+  noOutline: { outlineWidth: 0 },
+  fieldToggle: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 16, borderWidth: 1 },
 });

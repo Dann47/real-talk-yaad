@@ -1,6 +1,7 @@
 import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { ContinueChat } from '@/components/continue-chat';
 import {
   Appear,
   Avatar,
@@ -16,6 +17,7 @@ import {
 } from '@/components/kit';
 import { money, tasks, user, wallet } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
+import { displayName, useAuth } from '@/lib/auth';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -34,6 +36,8 @@ const QUICK_LABEL: Record<(typeof QUICK)[number], string> = {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { profile, user: account } = useAuth();
+  const name = displayName(profile, account);
   const weekProgress = wallet.thisWeek / user.weekGoal;
 
   return (
@@ -43,11 +47,11 @@ export default function HomeScreen() {
           <T variant="overline" color="textSecondary">
             {greeting()}
           </T>
-          <T variant="title">{user.name}</T>
+          <T variant="title">{name}</T>
         </View>
         <Chip tone="reward" icon="flame" label={`${user.streakDays}-day streak`} />
         <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/profile' as Href)}>
-          <Avatar letter={user.name[0]} />
+          <Avatar letter={name[0]?.toUpperCase() ?? 'R'} />
         </Pressable>
       </Appear>
 
@@ -120,6 +124,8 @@ export default function HomeScreen() {
           </View>
         </Card>
       </Appear>
+
+      <ContinueChat />
 
       <Appear index={4}>
         <SectionHeader title="Today's work" action="See all" href={'/work' as Href} />

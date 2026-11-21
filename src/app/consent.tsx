@@ -1,10 +1,12 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Header, Icon, IconTile, ProgressBar, Screen, T } from '@/components/kit';
+import { Button, Card, Header, Icon, IconTile, Notice, ProgressBar, Screen, T, goBack } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
-import { completeOnboarding, hasOnboarded } from '@/lib/onboarding';
+import { TERMS_VERSION, useAuth } from '@/lib/auth';
+import { authMessage } from '@/lib/auth-helpers';
+import { supabase } from '@/lib/supabase';
 
 function Checkbox({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: () => void }) {
   const theme = useTheme();
@@ -40,27 +42,43 @@ function Checkbox({ checked, label, onToggle }: { checked: boolean; label: strin
 
 export default function ConsentScreen() {
   const theme = useTheme();
-  const alreadyIn = hasOnboarded();
+  const { consented: alreadyIn, refresh } = useAuth();
   const [adult, setAdult] = useState(alreadyIn);
   const [training, setTraining] = useState(alreadyIn);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const agree = () => {
-    completeOnboarding();
+  const agree = async () => {
+    if (alreadyIn) return goBack();
+    setBusy(true);
+    setError(null);
+    const { error: saveError } = await supabase.from('consents').insert({
+      terms_version: TERMS_VERSION,
+      is_adult: adult,
+      ai_training: training,
+      platform: Platform.OS,
+    });
+    if (saveError) {
+      setBusy(false);
+      return setError(authMessage(saveError));
+    }
+    await refresh();
     router.replace('/' as Href);
   };
 
   return (
     <Screen
       title="Consent"
-      header={<Header title="Before you start" subtitle={alreadyIn ? 'Your consent' : 'Step 2 of 3'} />}
+      header={<Header title="Before you start" subtitle={alreadyIn ? 'Your consent' : 'Step 3 of 3'} />}
       footer={
         <Button
-          label={alreadyIn ? 'Done' : 'I agree, continue'}
-          disabled={!adult || !training}
+          label={alreadyIn ? 'Done' : busy ? 'Saving...' : 'I agree, continue'}
+          disabled={!adult || !training || busy}
           onPress={agree}
         />
       }>
-      {!alreadyIn ? <ProgressBar value={0.66} label="Sign-up progress" /> : null}
+      {!alreadyIn ? <ProgressBar value={0.9} label="Sign-up progress" /> : null}
+      {error ? <Notice tone="error" text={error} /> : null}
       <T variant="title">Your voice, your choice</T>
       <T variant="body" color="textSecondary">
         We sell verified Patois data to AI companies. You only take part if you agree.
@@ -78,11 +96,11 @@ export default function ConsentScreen() {
         <T variant="small">• You can stop at any time. Work already sold stays sold.</T>
       </Card>
 
-      <Checkbox checked={adult} label="I am 18 or older" onToggle={() => setAdult(!adult)} />
+      <Checkbox checked={adult} label="I am 18 or older" onToggle={() => !alreadyIn && setAdult(!adult)} />
       <Checkbox
         checked={training}
         label="I agree my voice and text may be licensed for AI training"
-        onToggle={() => setTraining(!training)}
+        onToggle={() => !alreadyIn && setTraining(!training)}
       />
       <T variant="small" color="textSecondary">
         Full terms: [link to terms, once your lawyer has approved them]

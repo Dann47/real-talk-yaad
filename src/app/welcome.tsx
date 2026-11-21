@@ -1,5 +1,5 @@
 import { type Href } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Appear, Button, Card, Chip, IconTile, Screen, T, type IconName } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,8 +18,8 @@ export default function WelcomeScreen() {
       title="Welcome"
       footer={
         <View style={styles.footer}>
-          <Button label="Get started" href={'/consent' as Href} />
-          <Button label="I already have an account" variant="secondary" href={'/consent' as Href} />
+          <Button label="Create an account" href={'/sign-up' as Href} />
+          <Button label="I already have an account" variant="secondary" href={'/sign-in' as Href} />
           <T variant="caption" color="textSecondary" style={styles.center}>
             18+ only. Your voice is used only with your permission.
           </T>
@@ -37,9 +37,7 @@ export default function WelcomeScreen() {
       <Appear index={1}>
         <T variant="display">
           Teach AI real Jamaican.{' '}
-          <T variant="display" color="accentText">
-            Get paid.
-          </T>
+          <Text style={{ color: theme.accentText }}>Get paid.</Text>
         </T>
       </Appear>
       <Appear index={2}>

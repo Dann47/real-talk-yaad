@@ -1,28 +1,31 @@
 import { type Href } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { Appear, Avatar, Card, Chip, ListRow, Screen, SectionHeader, T } from '@/components/kit';
+import { Appear, Avatar, Button, Card, Chip, ListRow, Screen, SectionHeader, T } from '@/components/kit';
 import { leaderboard, user } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
+import { displayName, useAuth } from '@/lib/auth';
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const { profile, user: account, signOut } = useAuth();
+  const name = displayName(profile, account);
   const medal = [theme.reward, theme.textSecondary, theme.rewardText];
 
   return (
     <Screen tabs title="Me">
       <Appear>
         <Card tone="hero" style={styles.identity}>
-          <Avatar letter={user.name[0]} size={72} ring={theme.onAccent} />
+          <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={72} ring={theme.onAccent} />
           <View style={styles.flex}>
             <T variant="title" style={{ color: theme.onAccent }}>
-              {user.name}
+              {name}
             </T>
             <T variant="small" style={{ color: theme.onAccent }}>
-              {user.handle} · {user.parish}
+              {profile?.handle ? `@${profile.handle}` : account?.email}
             </T>
             <View style={styles.chip}>
-              <Chip tone="reward" icon="sparkles" label={`Level ${user.level} · ${user.levelName}`} />
+              <Chip tone="reward" icon="sparkles" label={`Level ${profile?.level ?? 1} · ${user.levelName}`} />
             </View>
           </View>
         </Card>
@@ -70,9 +73,13 @@ export default function ProfileScreen() {
         <SectionHeader title="Settings" />
       </Appear>
       <Appear index={5} style={styles.links}>
+        <ListRow icon="person" title="Account and password" subtitle="Name, password, sign out" href={'/account' as Href} />
         <ListRow icon="settings" title="Appearance" subtitle="Light, dark and accent colour" href={'/settings' as Href} />
         <ListRow icon="shield" title="Consent and data" subtitle="How your voice and text are used" href={'/consent' as Href} />
         <ListRow icon="wallet" tone="reward" title="Payout method" subtitle="Bank card •••• 4821" href={'/wallet' as Href} />
+      </Appear>
+      <Appear index={6}>
+        <Button label="Sign out" variant="secondary" onPress={signOut} />
       </Appear>
     </Screen>
   );

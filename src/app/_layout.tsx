@@ -13,6 +13,7 @@ import { useMemo, type ReactNode } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useTheme } from '@/hooks/use-theme';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { ThemeSettingsProvider, useThemeSettings } from '@/theme/theme-provider';
 
 SplashScreen.preventAutoHideAsync();
@@ -43,6 +44,48 @@ function NavigationTheme({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Which screens exist depends on who is signed in:
+ * signed out → welcome and sign-in screens; signed in without consent → consent; otherwise → the app.
+ */
+function RootNavigator() {
+  const { ready, session, consented } = useAuth();
+  if (!ready) return null;
+  const signedIn = !!session;
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Listed first: whenever a screen becomes unavailable (sign in, sign out, consent), the app falls back here. */}
+      <Stack.Screen name="index" />
+
+      <Stack.Protected guard={signedIn && consented}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="talk" />
+        <Stack.Screen name="voice" />
+        <Stack.Screen name="record" />
+        <Stack.Screen name="verify" />
+        <Stack.Screen name="store" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={signedIn}>
+        <Stack.Screen name="consent" options={{ gestureEnabled: consented }} />
+        <Stack.Screen name="account" />
+        <Stack.Screen name="settings" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={!signedIn}>
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-up" />
+        <Stack.Screen name="verify-email" />
+      </Stack.Protected>
+
+      {/* Open to everyone: the reset signs the user in part-way through. */}
+      <Stack.Screen name="forgot-password" />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
@@ -58,18 +101,10 @@ export default function RootLayout() {
   return (
     <ThemeSettingsProvider>
       <NavigationTheme>
-        <AnimatedSplashOverlay />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
-          <Stack.Screen name="consent" />
-          <Stack.Screen name="talk" />
-          <Stack.Screen name="voice" />
-          <Stack.Screen name="record" />
-          <Stack.Screen name="verify" />
-          <Stack.Screen name="store" />
-          <Stack.Screen name="settings" />
-        </Stack>
+        <AuthProvider>
+          <AnimatedSplashOverlay />
+          <RootNavigator />
+        </AuthProvider>
       </NavigationTheme>
     </ThemeSettingsProvider>
   );

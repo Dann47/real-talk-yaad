@@ -100,28 +100,6 @@ export const tasks: Task[] = [
   },
 ];
 
-export type ChatMessage = {
-  id: string;
-  from: 'ai' | 'me' | 'correction';
-  text: string;
-  flagged?: boolean;
-};
-
-export const talkTopic = 'Sunday dinner';
-
-export const openingChat: ChatMessage[] = [
-  { id: 'm1', from: 'ai', text: 'Wah gwaan! Tell mi bout Sunday dinner a yuh yaad.' },
-  { id: 'm2', from: 'me', text: 'Every Sunday mi granny cook rice an peas an chicken.' },
-  { id: 'm3', from: 'ai', text: 'That sound very delicious, mi friend.' },
-];
-
-export const aiReplies = [
-  'Respect! Yuh granny cook it pon di fire or inna di oven?',
-  'Mi like dat. Wah else unu nyam pon Sunday?',
-  'True! Tell mi more bout it.',
-  'Who else come a di house fi eat?',
-];
-
 export const recordLines = [
   'Wah gwaan, how yuh do?',
   'Mi deh yah, likkle bit tired still.',

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { ContinueChat } from '@/components/continue-chat';
 import { Appear, Card, Chip, IconTile, ListRow, Screen, T } from '@/components/kit';
 import { money, tasks, wallet } from '@/data/sample';
 
@@ -15,6 +16,8 @@ export default function WorkScreen() {
           You get paid once other speakers verify your work.
         </T>
       </Appear>
+
+      <ContinueChat />
 
       <Appear index={1}>
         <Card tone="reward" style={styles.summary}>

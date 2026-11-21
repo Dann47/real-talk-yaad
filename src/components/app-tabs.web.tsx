@@ -7,7 +7,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const TABS: { name: string; href: string; label: string }[] = [
-  { name: 'index', href: '/', label: 'Home' },
+  { name: 'home', href: '/home', label: 'Home' },
   { name: 'work', href: '/work', label: 'Work' },
   { name: 'feed', href: '/feed', label: 'Feed' },
   { name: 'wallet', href: '/wallet', label: 'Wallet' },

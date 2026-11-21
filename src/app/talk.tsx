@@ -1,53 +1,69 @@
-import { useRef, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 
-import { Appear, Button, Chip, Header, Icon, IconButton, Screen, T, inputText } from '@/components/kit';
-import { aiReplies, openingChat, talkTopic, type ChatMessage } from '@/data/sample';
+import { Appear, Button, Chip, Header, Icon, IconButton, Notice, Screen, T, inputText } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
+import {
+  correctMessage,
+  loadConversation,
+  sendMessage,
+  startConversation,
+  type ChatMessage,
+  type Conversation,
+  type Correction,
+} from '@/lib/chat';
 
+/** What a verified correction is worth. Display only: real pay comes from the ledger later. */
 const PAY_PER_CORRECTION = 15;
 
-function Bubble({ message }: { message: ChatMessage }) {
+function Bubble({ message, correction }: { message: ChatMessage; correction?: Correction }) {
   const theme = useTheme();
-  if (message.from === 'correction') {
-    return (
-      <View style={[styles.correction, { backgroundColor: theme.accentSoft, borderColor: theme.backgroundSelected }]}>
-        <View style={styles.row}>
-          <Icon name="edit" size={14} color={theme.accentText} />
-          <T variant="caption" color="accentText">
-            Your correction
+  const mine = message.role === 'user';
+
+  return (
+    <View style={styles.group}>
+      <View style={[styles.messageWrap, mine && styles.mineWrap]}>
+        <View
+          style={[
+            styles.bubble,
+            mine ? styles.myTail : styles.aiTail,
+            mine
+              ? { backgroundColor: theme.accent }
+              : {
+                  backgroundColor: theme.backgroundElement,
+                  borderWidth: message.flagged ? 2 : 1,
+                  borderColor: message.flagged ? theme.reward : theme.backgroundSelected,
+                },
+          ]}>
+          <T variant="body" style={mine ? { color: theme.onAccent } : undefined}>
+            {message.content}
           </T>
         </View>
-        <T variant="bodyStrong">{message.text}</T>
-        <T variant="caption" color="textSecondary">
-          Waiting for other speakers to verify · +J${PAY_PER_CORRECTION}
-        </T>
+        {message.flagged ? (
+          <T variant="caption" color="textSecondary">
+            You marked this reply as wrong
+          </T>
+        ) : null}
       </View>
-    );
-  }
-  const mine = message.from === 'me';
-  return (
-    <View style={[styles.messageWrap, mine && styles.mineWrap]}>
-      <View
-        style={[
-          styles.bubble,
-          mine ? styles.myTail : styles.aiTail,
-          mine
-            ? { backgroundColor: theme.accent }
-            : {
-                backgroundColor: theme.backgroundElement,
-                borderWidth: message.flagged ? 2 : 1,
-                borderColor: message.flagged ? theme.reward : theme.backgroundSelected,
-              },
-        ]}>
-        <T variant="body" style={mine ? { color: theme.onAccent } : undefined}>
-          {message.text}
-        </T>
-      </View>
-      {message.flagged ? (
-        <T variant="caption" color="textSecondary">
-          You marked this reply as wrong
-        </T>
+
+      {correction ? (
+        <View style={[styles.correction, { backgroundColor: theme.accentSoft, borderColor: theme.backgroundSelected }]}>
+          <View style={styles.row}>
+            <Icon name="edit" size={14} color={theme.accentText} />
+            <T variant="caption" color="accentText">
+              Your correction
+            </T>
+          </View>
+          <T variant="bodyStrong">{correction.corrected}</T>
+          <T variant="caption" color="textSecondary">
+            {correction.status === 'pending'
+              ? `Waiting for other speakers to verify · +J$${PAY_PER_CORRECTION}`
+              : correction.status === 'approved'
+                ? `Verified · +J$${PAY_PER_CORRECTION}`
+                : 'Not accepted by reviewers'}
+          </T>
+        </View>
       ) : null}
     </View>
   );
@@ -55,46 +71,111 @@ function Bubble({ message }: { message: ChatMessage }) {
 
 export default function TalkScreen() {
   const theme = useTheme();
-  const [messages, setMessages] = useState<ChatMessage[]>(openingChat);
+  const { topic: topicParam, conversation: resumeId } = useLocalSearchParams<{ topic?: string; conversation?: string }>();
+
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [corrections, setCorrections] = useState<Record<number, Correction>>({});
   const [draft, setDraft] = useState('');
   const [correcting, setCorrecting] = useState(false);
-  const [earned, setEarned] = useState(45);
-  const [typing, setTyping] = useState(false);
-  const replyIndex = useRef(0);
+  const [starting, setStarting] = useState(true);
+  const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const lastAi = [...messages].reverse().find((m) => m.from === 'ai');
+  const begin = useCallback(async (topicId?: string) => {
+    setStarting(true);
+    setError(null);
+    setMessages([]);
+    setCorrections({});
+    setCorrecting(false);
+    try {
+      const result = await startConversation(topicId);
+      setConversation(result.conversation);
+      setMessages(result.messages);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setStarting(false);
+    }
+  }, []);
 
-  const send = () => {
+  const resume = useCallback(async (conversationId: string) => {
+    setStarting(true);
+    setError(null);
+    try {
+      const saved = await loadConversation(conversationId);
+      setConversation(saved.conversation);
+      setMessages(saved.messages);
+      setCorrections(Object.fromEntries(saved.corrections.map((c) => [c.message_id, c])));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setStarting(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (resumeId) resume(resumeId);
+    else begin(topicParam);
+  }, [begin, resume, resumeId, topicParam]);
+
+  const lastAi = [...messages].reverse().find((m) => m.role === 'assistant');
+  const canCorrect = !!lastAi && !corrections[lastAi.id];
+  const earned = Object.keys(corrections).length * PAY_PER_CORRECTION;
+
+  const submit = async () => {
     const text = draft.trim();
-    if (!text) return;
-    setDraft('');
+    if (!text || !conversation || waiting) return;
+    setError(null);
 
     if (correcting && lastAi) {
-      setCorrecting(false);
-      setEarned((e) => e + PAY_PER_CORRECTION);
-      setMessages((prev) => [
-        ...prev.map((m) => (m.id === lastAi.id ? { ...m, flagged: true } : m)),
-        { id: `c${Date.now()}`, from: 'correction', text },
-      ]);
+      setWaiting(true);
+      try {
+        const { correction } = await correctMessage(lastAi.id, text);
+        setCorrections((prev) => ({ ...prev, [lastAi.id]: correction }));
+        setMessages((prev) => prev.map((m) => (m.id === lastAi.id ? { ...m, flagged: true } : m)));
+        setDraft('');
+        setCorrecting(false);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setWaiting(false);
+      }
       return;
     }
 
-    const reply = aiReplies[replyIndex.current % aiReplies.length];
-    replyIndex.current += 1;
-    setMessages((prev) => [...prev, { id: `u${Date.now()}`, from: 'me', text }]);
-    setTyping(true);
-    // Placeholder reply until the AI backend is connected.
-    setTimeout(() => {
-      setTyping(false);
-      setMessages((prev) => [...prev, { id: `a${Date.now()}`, from: 'ai', text: reply }]);
-    }, 1100);
+    // Show the user's message straight away, then swap in the saved copy.
+    const tempId = -Date.now();
+    setMessages((prev) => [
+      ...prev,
+      { id: tempId, role: 'user', content: text, flagged: false, created_at: new Date().toISOString() },
+    ]);
+    setDraft('');
+    setWaiting(true);
+    try {
+      const { userMessage, reply } = await sendMessage(conversation.id, text);
+      setMessages((prev) => [...prev.filter((m) => m.id !== tempId), userMessage, reply]);
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setDraft(text);
+      setError((e as Error).message);
+    } finally {
+      setWaiting(false);
+    }
   };
+
+  const topicTitle = conversation?.topic.title;
 
   return (
     <Screen
+      stickToBottom
       title="Talk with the AI"
       header={
-        <Header title="Talk with the AI" subtitle={`Topic: ${talkTopic}`} right={<Chip label={`J$${earned} so far`} />} />
+        <Header
+          title="Talk with the AI"
+          subtitle={topicTitle ? `Topic: ${topicTitle}` : 'Finding a topic...'}
+          right={<Chip label={`J$${earned} so far`} />}
+        />
       }
       footer={
         <View style={styles.footer}>
@@ -106,25 +187,30 @@ export default function TalkScreen() {
               <Button label="Cancel" variant="ghost" compact onPress={() => setCorrecting(false)} />
             </View>
           ) : (
-            <Button
-              label="Correct the last reply"
-              icon="edit"
-              variant="secondary"
-              compact
-              style={styles.correctButton}
-              disabled={!lastAi}
-              onPress={() => setCorrecting(true)}
-            />
+            <View style={styles.row}>
+              <Button
+                label="Correct the last reply"
+                icon="edit"
+                variant="secondary"
+                compact
+                disabled={!canCorrect || waiting || starting}
+                // Keep anything already typed: people often start writing the fix before tapping this.
+                onPress={() => setCorrecting(true)}
+              />
+              <Button label="New topic" variant="ghost" compact disabled={starting || waiting} onPress={() => begin()} />
+            </View>
           )}
           <View style={styles.row}>
             <TextInput
               accessibilityLabel={correcting ? 'Your correction' : 'Message'}
               value={draft}
               onChangeText={setDraft}
-              onSubmitEditing={send}
-              placeholder={correcting ? 'Dat sound nice, yuh see!' : 'Type in Patois...'}
+              onSubmitEditing={submit}
+              editable={!starting && !!conversation}
+              placeholder={correcting ? 'How would you say it?' : 'Type in Patois...'}
               placeholderTextColor={theme.textSecondary}
               returnKeyType="send"
+              maxLength={1000}
               style={[
                 styles.input,
                 inputText,
@@ -135,20 +221,48 @@ export default function TalkScreen() {
                 },
               ]}
             />
-            <IconButton icon="send" label={correcting ? 'Send correction' : 'Send'} filled onPress={send} />
+            <IconButton
+              icon="send"
+              label={correcting ? 'Send correction' : 'Send'}
+              filled
+              onPress={submit}
+            />
           </View>
         </View>
       }>
+      {error ? (
+        <Appear>
+          <Notice tone="error" text={error} />
+          {!conversation ? (
+            <Button
+              label="Try again"
+              variant="secondary"
+              compact
+              style={styles.retry}
+              onPress={() => (resumeId ? resume(resumeId) : begin(topicParam))}
+            />
+          ) : null}
+        </Appear>
+      ) : null}
+
+      {starting ? (
+        <View style={styles.loading} accessibilityLabel="Starting a conversation">
+          <ActivityIndicator color={theme.accentText} />
+          <T variant="small" color="textSecondary">
+            {resumeId ? 'Loading your chat...' : 'Starting a conversation...'}
+          </T>
+        </View>
+      ) : null}
+
       {messages.map((message) => (
         <Appear key={message.id}>
-          <Bubble message={message} />
+          <Bubble message={message} correction={corrections[message.id]} />
         </Appear>
       ))}
-      {typing ? (
+
+      {waiting && !correcting ? (
         <Appear>
-          <View
-            accessibilityLabel="The AI is typing"
-            style={[styles.typing, { backgroundColor: theme.backgroundElement }]}>
+          <View accessibilityLabel="The AI is typing" style={[styles.typing, { backgroundColor: theme.backgroundElement }]}>
             {[0, 1, 2].map((i) => (
               <View key={i} style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.5 + i * 0.2 }]} />
             ))}
@@ -162,15 +276,17 @@ export default function TalkScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  group: { gap: 8 },
   messageWrap: { alignSelf: 'flex-start', maxWidth: '85%', gap: 4 },
   mineWrap: { alignSelf: 'flex-end' },
   bubble: { paddingVertical: 11, paddingHorizontal: 15, borderRadius: 20 },
   aiTail: { borderBottomLeftRadius: 6 },
   myTail: { borderBottomRightRadius: 6 },
+  correction: { alignSelf: 'flex-end', maxWidth: '88%', padding: 14, borderRadius: 20, borderBottomRightRadius: 6, borderWidth: 1, gap: 4 },
   typing: { alignSelf: 'flex-start', flexDirection: 'row', gap: 5, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, borderBottomLeftRadius: 6 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  correction: { alignSelf: 'flex-end', maxWidth: '88%', padding: 14, borderRadius: 20, borderBottomRightRadius: 6, borderWidth: 1, gap: 4 },
+  loading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  retry: { alignSelf: 'flex-start', marginTop: 8 },
   footer: { gap: 10 },
-  correctButton: { alignSelf: 'flex-start' },
   input: { flex: 1, minHeight: 48, borderWidth: 1.5, borderRadius: 24, paddingHorizontal: 16 },
 });
