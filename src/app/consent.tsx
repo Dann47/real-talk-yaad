@@ -2,7 +2,7 @@ import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Header, Icon, ProgressBar, Screen, T } from '@/components/kit';
+import { Button, Card, Header, Icon, IconTile, ProgressBar, Screen, T } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
 import { completeOnboarding, hasOnboarded } from '@/lib/onboarding';
 
@@ -13,7 +13,14 @@ function Checkbox({ checked, label, onToggle }: { checked: boolean; label: strin
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       onPress={onToggle}
-      style={[styles.check, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
+      style={({ pressed }) => [
+        styles.check,
+        {
+          backgroundColor: checked ? theme.accentSoft : theme.background,
+          borderColor: checked ? theme.accent : theme.backgroundSelected,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
+      ]}>
       <View
         style={[
           styles.box,
@@ -44,6 +51,7 @@ export default function ConsentScreen() {
 
   return (
     <Screen
+      title="Consent"
       header={<Header title="Before you start" subtitle={alreadyIn ? 'Your consent' : 'Step 2 of 3'} />}
       footer={
         <Button
@@ -60,7 +68,7 @@ export default function ConsentScreen() {
 
       <Card style={styles.info}>
         <View style={styles.infoTitle}>
-          <Icon name="shield" color={theme.accentText} />
+          <IconTile icon="shield" size={36} />
           <T variant="bodyStrong" color="accentText">
             How your data is used
           </T>
@@ -87,6 +95,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   info: { gap: 8 },
   infoTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  check: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, minHeight: 56 },
+  check: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1.5, minHeight: 60 },
   box: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

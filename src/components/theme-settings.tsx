@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
+import { T, inputText } from '@/components/kit';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -80,7 +80,7 @@ export function ThemeSettings() {
   return (
     <View style={styles.wrap}>
       <View style={styles.section}>
-        <ThemedText type="smallBold">Appearance</ThemedText>
+        <T variant="smallStrong">Appearance</T>
         <ThemedView type="backgroundElement" style={styles.segment} accessibilityRole="radiogroup">
           {MODES.map((mode) => {
             const selected = preference === mode.value;
@@ -91,27 +91,27 @@ export function ThemeSettings() {
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
                 style={[styles.segmentItem, selected && { backgroundColor: theme.accent }]}>
-                <ThemedText
-                  type="smallBold"
+                <T
+                  variant="smallStrong"
                   style={{ color: selected ? theme.onAccent : theme.text }}>
                   {mode.label}
-                </ThemedText>
+                </T>
               </Pressable>
             );
           })}
         </ThemedView>
-        <ThemedText type="small" themeColor="textSecondary">
+        <T variant="small" color="textSecondary">
           System follows your phone's light or dark setting.
-        </ThemedText>
+        </T>
       </View>
 
       <View style={styles.section}>
         <View style={styles.headerRow}>
-          <ThemedText type="smallBold">Accent colour</ThemedText>
+          <T variant="smallStrong">Accent colour</T>
           <Pressable onPress={resetAccent} accessibilityRole="button" hitSlop={8}>
-            <ThemedText type="small" themeColor="accentText">
+            <T variant="small" color="accentText">
               Reset
-            </ThemedText>
+            </T>
           </Pressable>
         </View>
         <View style={styles.swatchRow}>
@@ -127,9 +127,9 @@ export function ThemeSettings() {
           ))}
         </View>
 
-        <ThemedText type="small" themeColor="textSecondary">
+        <T variant="small" color="textSecondary">
           More colours
-        </ThemedText>
+        </T>
         <View style={styles.palette}>
           {ACCENT_PALETTE.map((row, rowIndex) => (
             <View key={rowIndex} style={styles.paletteRow}>
@@ -178,34 +178,34 @@ export function ThemeSettings() {
               styles.applyButton,
               { backgroundColor: theme.accent, opacity: pressed ? 0.8 : 1 },
             ]}>
-            <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+            <T variant="smallStrong" style={{ color: theme.onAccent }}>
               Apply
-            </ThemedText>
+            </T>
           </Pressable>
         </View>
         {error ? (
-          <ThemedText type="small" style={styles.error} accessibilityLiveRegion="polite">
+          <T variant="small" style={styles.error} accessibilityLiveRegion="polite">
             {error}
-          </ThemedText>
+          </T>
         ) : null}
       </View>
 
       <View style={styles.section}>
-        <ThemedText type="smallBold">Preview</ThemedText>
+        <T variant="smallStrong">Preview</T>
         <ThemedView type="backgroundElement" style={styles.preview}>
           <View style={[styles.previewButton, { backgroundColor: theme.accent }]}>
-            <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+            <T variant="smallStrong" style={{ color: theme.onAccent }}>
               Start talking
-            </ThemedText>
+            </T>
           </View>
           <View style={[styles.previewChip, { backgroundColor: theme.accentSoft }]}>
-            <ThemedText type="smallBold" style={{ color: theme.text }}>
+            <T variant="smallStrong" style={{ color: theme.text }}>
               Level 3 · Trusted Teacher
-            </ThemedText>
+            </T>
           </View>
-          <ThemedText type="smallBold" themeColor="accentText">
+          <T variant="smallStrong" color="accentText">
             +J$15 when verified
-          </ThemedText>
+          </T>
         </ThemedView>
       </View>
     </View>
@@ -268,8 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderWidth: 1,
     borderRadius: Spacing.two,
-    fontSize: 16,
-    fontFamily: 'monospace',
+    ...inputText,
   },
   applyButton: {
     minHeight: 44,

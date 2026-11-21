@@ -20,6 +20,7 @@ export default function StoreScreen() {
 
   return (
     <Screen
+      title="Store"
       header={<Header title="Store" right={<Chip tone="soft" icon="wallet" label={money(balance, 0)} />} />}
       footer={
         chosen ? (
@@ -66,7 +67,7 @@ export default function StoreScreen() {
         })}
       </View>
 
-      <Card tone="accent" style={styles.banner}>
+      <Card tone="hero" style={styles.banner}>
         <Chip label="Artist drop" />
         <T variant="title" style={{ color: theme.onAccent }}>
           Kingston Nights stickers
@@ -86,10 +87,11 @@ export default function StoreScreen() {
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={`${item.name}, ${money(item.price, 0)}`}
               onPress={() => setSelected(item.id)}
-              style={[
+              style={({ pressed }) => [
                 styles.item,
                 {
-                  backgroundColor: theme.backgroundElement,
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                  backgroundColor: theme.background,
                   borderColor: isSelected ? theme.accent : theme.backgroundSelected,
                   borderWidth: isSelected ? 2 : 1,
                 },
@@ -121,7 +123,7 @@ const styles = StyleSheet.create({
   filter: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, justifyContent: 'center' },
   banner: { gap: 6, padding: 18 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  item: { width: '47.5%', flexGrow: 1, padding: 10, borderRadius: 18, gap: 8 },
+  item: { width: '47.5%', flexGrow: 1, padding: 10, borderRadius: 20, gap: 8 },
   thumb: { height: 110, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 46, height: 46, borderRadius: 23, borderWidth: 6 },
   itemMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

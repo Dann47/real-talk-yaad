@@ -17,6 +17,8 @@ export const user = {
   tasksDone: 248,
   agreeRate: '94%',
   earned: 'J$18.4k',
+  streakDays: 5,
+  weekGoal: 1000,
 };
 
 export const wallet = {
@@ -40,6 +42,7 @@ export type Task = {
   detail: string;
   pay: string;
   icon: IconName;
+  tone: 'accent' | 'reward';
   href: Href;
   description: string;
 };
@@ -47,6 +50,7 @@ export type Task = {
 export const tasks: Task[] = [
   {
     id: 'talk',
+    tone: 'accent',
     title: 'Talk with the AI',
     detail: 'Topic: Sunday dinner · 10 min',
     pay: 'up to J$150',
@@ -56,6 +60,7 @@ export const tasks: Task[] = [
   },
   {
     id: 'voice',
+    tone: 'accent',
     title: 'Voice chat',
     detail: 'Topic: At the market · 5 min',
     pay: 'up to J$90',
@@ -65,6 +70,7 @@ export const tasks: Task[] = [
   },
   {
     id: 'record',
+    tone: 'reward',
     title: 'Record: Market day',
     detail: '10 short lines · 4 min',
     pay: 'J$40',
@@ -74,6 +80,7 @@ export const tasks: Task[] = [
   },
   {
     id: 'verify',
+    tone: 'accent',
     title: 'Verify corrections',
     detail: '10 items · 5 min',
     pay: 'J$60',
@@ -83,6 +90,7 @@ export const tasks: Task[] = [
   },
   {
     id: 'teach',
+    tone: 'reward',
     title: 'Teach: describe a clip',
     detail: '1 video · 1 min',
     pay: 'J$25',
@@ -134,11 +142,11 @@ export const verifyItems = [
   { id: 'v4', ai: 'Di weather is very hot today.', corrected: 'Di sun hot today, eeh!' },
 ];
 
-export const history = [
-  { id: 'h1', label: 'Talk with the AI', when: 'Today', amount: 150 },
-  { id: 'h2', label: 'Verified 10 corrections', when: 'Today', amount: 60 },
-  { id: 'h3', label: 'Store: Yaad Gold theme', when: 'Yesterday', amount: -300 },
-  { id: 'h4', label: 'Cash out to card •••• 4821', when: 'Nov 10', amount: -2000 },
+export const history: { id: string; kind: 'earn' | 'store' | 'cashout'; label: string; when: string; amount: number }[] = [
+  { id: 'h1', kind: 'earn', label: 'Talk with the AI', when: 'Today', amount: 150 },
+  { id: 'h2', kind: 'earn', label: 'Verified 10 corrections', when: 'Today', amount: 60 },
+  { id: 'h3', kind: 'store', label: 'Store: Yaad Gold theme', when: 'Yesterday', amount: -300 },
+  { id: 'h4', kind: 'cashout', label: 'Cash out to card •••• 4821', when: 'Nov 10', amount: -2000 },
 ];
 
 export type StoreCategory = 'Themes' | 'Badges' | 'Stickers' | 'Sounds';

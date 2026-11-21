@@ -1,13 +1,13 @@
 import { type Href } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, Chip, Icon, Screen, T, type IconName } from '@/components/kit';
+import { Appear, Button, Card, Chip, IconTile, Screen, T, type IconName } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
 
-const BENEFITS: { icon: IconName; text: string }[] = [
-  { icon: 'chat', text: 'Talk with the AI and correct it' },
-  { icon: 'wallet', text: 'Get paid in J$ or US$' },
-  { icon: 'bag', text: 'Spend in the store or cash out' },
+const BENEFITS: { icon: IconName; title: string; text: string; tone: 'accent' | 'reward' }[] = [
+  { icon: 'chat', title: 'Talk and correct', text: 'Chat with the AI and fix its Patois.', tone: 'accent' },
+  { icon: 'wallet', title: 'Get paid', text: 'Earn J$ for every verified answer.', tone: 'reward' },
+  { icon: 'bag', title: 'Spend or cash out', text: 'Use the store or send it to your card.', tone: 'accent' },
 ];
 
 export default function WelcomeScreen() {
@@ -15,6 +15,7 @@ export default function WelcomeScreen() {
 
   return (
     <Screen
+      title="Welcome"
       footer={
         <View style={styles.footer}>
           <Button label="Get started" href={'/consent' as Href} />
@@ -24,55 +25,76 @@ export default function WelcomeScreen() {
           </T>
         </View>
       }>
-      <View style={styles.brand}>
+      <Appear style={styles.brand}>
         <View style={[styles.logo, { backgroundColor: theme.accent }]}>
           <T variant="bodyStrong" style={{ color: theme.onAccent }}>
             RT
           </T>
         </View>
         <T variant="heading">Real Talk Yaad</T>
-      </View>
+      </Appear>
 
-      <T variant="display">Teach AI real Jamaican. Get paid.</T>
-      <T variant="body" color="textSecondary">
-        Chat, talk and correct the AI in Patois. Earn money for every answer other speakers verify.
-      </T>
-
-      <Card style={styles.demo}>
-        <View style={[styles.bubble, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}>
-          <T variant="small">That sound very delicious, mi friend.</T>
-        </View>
-        <View style={[styles.bubble, styles.mine, { backgroundColor: theme.accent, borderColor: theme.accent }]}>
-          <T variant="smallStrong" style={{ color: theme.onAccent }}>
-            We'd say: "Dat sound nice, yuh see!"
+      <Appear index={1}>
+        <T variant="display">
+          Teach AI real Jamaican.{' '}
+          <T variant="display" color="accentText">
+            Get paid.
           </T>
-        </View>
-        <View style={styles.mineChip}>
-          <Chip label="+J$15 when verified" />
-        </View>
-      </Card>
+        </T>
+      </Appear>
+      <Appear index={2}>
+        <T variant="body" color="textSecondary">
+          Chat, talk and correct the AI in Patois. Earn money for every answer other speakers verify.
+        </T>
+      </Appear>
 
-      <View style={styles.benefits}>
-        {BENEFITS.map((benefit) => (
-          <View key={benefit.text} style={styles.benefit}>
-            <Icon name={benefit.icon} color={theme.accentText} />
-            <T variant="bodyStrong">{benefit.text}</T>
+      <Appear index={3}>
+        <Card tone="hero" style={styles.demo}>
+          <View style={[styles.bubble, styles.aiBubble, { backgroundColor: theme.background }]}>
+            <T variant="caption" color="textSecondary">
+              AI
+            </T>
+            <T variant="small">That sound very delicious, mi friend.</T>
           </View>
-        ))}
-      </View>
+          <View style={[styles.bubble, styles.myBubble, { backgroundColor: theme.reward }]}>
+            <T variant="caption" style={{ color: theme.onReward }}>
+              You
+            </T>
+            <T variant="smallStrong" style={{ color: theme.onReward }}>
+              We'd say: "Dat sound nice, yuh see!"
+            </T>
+          </View>
+          <View style={styles.end}>
+            <Chip tone="onAccent" icon="check" label="+J$15 when verified" />
+          </View>
+        </Card>
+      </Appear>
+
+      {BENEFITS.map((benefit, i) => (
+        <Appear key={benefit.title} index={4 + i} style={styles.benefit}>
+          <IconTile icon={benefit.icon} tone={benefit.tone} />
+          <View style={styles.flex}>
+            <T variant="bodyStrong">{benefit.title}</T>
+            <T variant="small" color="textSecondary">
+              {benefit.text}
+            </T>
+          </View>
+        </Appear>
+      ))}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  logo: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  demo: { gap: 10 },
-  bubble: { alignSelf: 'flex-start', maxWidth: '85%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1 },
-  mine: { alignSelf: 'flex-end' },
-  mineChip: { alignSelf: 'flex-end' },
-  benefits: { gap: 12 },
-  benefit: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  flex: { flex: 1 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  logo: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  demo: { gap: 10, padding: 20 },
+  bubble: { maxWidth: '86%', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18, gap: 2 },
+  aiBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 6 },
+  myBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 6 },
+  end: { alignSelf: 'flex-end' },
+  benefit: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   footer: { gap: 12 },
   center: { textAlign: 'center' },
 });

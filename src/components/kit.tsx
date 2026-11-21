@@ -1,8 +1,9 @@
 /**
- * Real Talk Yaad UI kit: text, buttons, cards, chips, icons and the screen frame.
+ * Real Talk Yaad UI kit: text, buttons, cards, chips, icons, motion and the screen frame.
  * Every colour comes from useTheme(), so light/dark mode and the accent picker apply everywhere.
  */
 import { router, type Href } from 'expo-router';
+import Head from 'expo-router/head';
 import { SymbolView } from 'expo-symbols';
 import type { ComponentProps, ReactNode } from 'react';
 import {
@@ -15,12 +16,29 @@ import {
   View,
   type StyleProp,
   type TextProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomTabInset, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+export const APP_NAME = 'Real Talk Yaad';
+
+/* ---------- Fonts (loaded in app/_layout.tsx) ---------- */
+
+export const FONT = {
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  extrabold: 'PlusJakartaSans_800ExtraBold',
+} as const;
+
+/** Use on TextInput so typed text matches the app font. */
+export const inputText: TextStyle = { fontFamily: FONT.medium, fontSize: 16 };
 
 /* ---------- Icons ---------- */
 
@@ -46,6 +64,13 @@ const ICONS = {
   chevron: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
   video: { ios: 'play.rectangle', android: 'smart_display', web: 'smart_display' },
   settings: { ios: 'gearshape', android: 'settings', web: 'settings' },
+  flame: { ios: 'flame', android: 'local_fire_department', web: 'local_fire_department' },
+  sparkles: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' },
+  cashout: { ios: 'arrow.up.right', android: 'north_east', web: 'north_east' },
+  plus: { ios: 'plus', android: 'add', web: 'add' },
+  trend: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
+  store: { ios: 'storefront', android: 'storefront', web: 'storefront' },
+  bolt: { ios: 'bolt', android: 'bolt', web: 'bolt' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;
@@ -58,14 +83,15 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
 /* ---------- Text ---------- */
 
 const textStyles = StyleSheet.create({
-  display: { fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6 },
-  title: { fontSize: 26, lineHeight: 32, fontWeight: '800', letterSpacing: -0.4 },
-  heading: { fontSize: 18, lineHeight: 24, fontWeight: '700' },
-  body: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
-  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  small: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
-  smallStrong: { fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  caption: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  display: { fontFamily: FONT.extrabold, fontSize: 36, lineHeight: 42, letterSpacing: -0.8 },
+  title: { fontFamily: FONT.extrabold, fontSize: 26, lineHeight: 32, letterSpacing: -0.5 },
+  heading: { fontFamily: FONT.bold, fontSize: 18, lineHeight: 24, letterSpacing: -0.2 },
+  body: { fontFamily: FONT.medium, fontSize: 16, lineHeight: 24 },
+  bodyStrong: { fontFamily: FONT.bold, fontSize: 16, lineHeight: 24 },
+  small: { fontFamily: FONT.medium, fontSize: 14, lineHeight: 20 },
+  smallStrong: { fontFamily: FONT.bold, fontSize: 14, lineHeight: 20 },
+  caption: { fontFamily: FONT.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.2 },
+  overline: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, textTransform: 'uppercase' },
 });
 
 export type TextVariant = keyof typeof textStyles;
@@ -87,9 +113,20 @@ export function T({
   );
 }
 
+/* ---------- Motion ---------- */
+
+/** Fades content up into place; pass an index to stagger lists. Respects the system reduce-motion setting. */
+export function Appear({ children, index = 0, style }: { children: ReactNode; index?: number; style?: StyleProp<ViewStyle> }) {
+  return (
+    <Animated.View entering={FadeInDown.duration(380).delay(Math.min(index, 8) * 55)} style={style}>
+      {children}
+    </Animated.View>
+  );
+}
+
 /* ---------- Buttons ---------- */
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'reward';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'reward' | 'onAccent';
 
 export function Button({
   label,
@@ -115,9 +152,10 @@ export function Button({
   const theme = useTheme();
   const palette = {
     primary: { bg: theme.accent, fg: theme.onAccent, border: theme.accent },
-    secondary: { bg: 'transparent', fg: theme.text, border: theme.backgroundSelected },
+    secondary: { bg: theme.background, fg: theme.text, border: theme.backgroundSelected },
     ghost: { bg: 'transparent', fg: theme.accentText, border: 'transparent' },
     reward: { bg: theme.reward, fg: theme.onReward, border: theme.reward },
+    onAccent: { bg: 'transparent', fg: theme.onAccent, border: theme.onAccent },
   }[variant];
 
   return (
@@ -136,7 +174,8 @@ export function Button({
         {
           backgroundColor: palette.bg,
           borderColor: palette.border,
-          opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
+          opacity: disabled ? 0.4 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.97 : 1 }],
         },
         style,
       ]}>
@@ -177,15 +216,30 @@ export function IconButton({
           backgroundColor: filled ? theme.accent : theme.backgroundElement,
           borderWidth: filled ? 0 : 1,
           borderColor: theme.backgroundSelected,
-          opacity: pressed ? 0.75 : 1,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
         },
       ]}>
-      <Icon name={icon} size={size > 60 ? 32 : 20} color={filled ? theme.onAccent : theme.text} />
+      <Icon name={icon} size={size > 60 ? 30 : 20} color={filled ? theme.onAccent : theme.text} />
     </Pressable>
   );
 }
 
 /* ---------- Surfaces ---------- */
+
+function useShadow(): ViewStyle {
+  const theme = useTheme();
+  return { boxShadow: `0 1px 2px ${theme.shadow}, 0 6px 16px ${theme.shadow}` };
+}
+
+/** Soft circles that give hero cards depth. Purely decorative. */
+export function Decor({ color }: { color: string }) {
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
+      <View style={[styles.decorBig, { borderColor: color }]} />
+      <View style={[styles.decorSmall, { backgroundColor: color }]} />
+    </View>
+  );
+}
 
 export function Card({
   children,
@@ -194,16 +248,24 @@ export function Card({
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  tone?: 'plain' | 'soft' | 'accent' | 'outlined';
+  tone?: 'plain' | 'soft' | 'hero' | 'outlined' | 'reward';
 }) {
   const theme = useTheme();
-  const toneStyle = {
-    plain: { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-    soft: { backgroundColor: theme.accentSoft, borderColor: theme.backgroundSelected },
-    accent: { backgroundColor: theme.accent, borderColor: theme.accent },
+  const shadow = useShadow();
+  const tones: Record<'plain' | 'soft' | 'hero' | 'outlined' | 'reward', ViewStyle> = {
+    plain: { backgroundColor: theme.background, borderColor: theme.backgroundSelected, ...shadow },
+    soft: { backgroundColor: theme.accentSoft, borderColor: 'transparent' },
+    hero: { backgroundColor: theme.accent, borderColor: theme.accent, overflow: 'hidden', ...shadow },
     outlined: { backgroundColor: theme.accentSoft, borderColor: theme.accent, borderWidth: 2 },
-  }[tone];
-  return <View style={[styles.card, toneStyle, style]}>{children}</View>;
+    reward: { backgroundColor: theme.rewardSoft, borderColor: 'transparent' },
+  };
+  const toneStyle = tones[tone];
+  return (
+    <View style={[styles.card, toneStyle, style]}>
+      {tone === 'hero' ? <Decor color={theme.onAccent} /> : null}
+      {children}
+    </View>
+  );
 }
 
 export function Chip({
@@ -212,26 +274,37 @@ export function Chip({
   icon,
 }: {
   label: string;
-  tone?: 'reward' | 'soft' | 'accent';
+  tone?: 'reward' | 'soft' | 'accent' | 'onAccent';
   icon?: IconName;
 }) {
   const theme = useTheme();
   const colors = {
     reward: { bg: theme.reward, fg: theme.onReward },
-    soft: { bg: theme.accentSoft, fg: theme.text },
+    soft: { bg: theme.accentSoft, fg: theme.accentText },
     accent: { bg: theme.accent, fg: theme.onAccent },
+    onAccent: { bg: theme.background, fg: theme.accentText },
   }[tone];
   return (
     <View style={[styles.chip, { backgroundColor: colors.bg }]}>
       {icon ? <Icon name={icon} size={14} color={colors.fg} /> : null}
-      <T variant="caption" style={{ color: colors.fg, fontWeight: '700' }}>
+      <T variant="caption" style={{ color: colors.fg, fontFamily: FONT.bold }}>
         {label}
       </T>
     </View>
   );
 }
 
-export function ProgressBar({ value, label }: { value: number; label: string }) {
+export function IconTile({ icon, tone = 'accent', size = 44 }: { icon: IconName; tone?: 'accent' | 'reward'; size?: number }) {
+  const theme = useTheme();
+  const colors = tone === 'reward' ? { bg: theme.rewardSoft, fg: theme.rewardText } : { bg: theme.accentSoft, fg: theme.accentText };
+  return (
+    <View style={{ width: size, height: size, borderRadius: size * 0.32, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={icon} size={size * 0.48} color={colors.fg} />
+    </View>
+  );
+}
+
+export function ProgressBar({ value, label, color }: { value: number; label: string; color?: string }) {
   const theme = useTheme();
   const pct = Math.max(0, Math.min(1, value));
   return (
@@ -240,7 +313,7 @@ export function ProgressBar({ value, label }: { value: number; label: string }) 
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(pct * 100) }}
       style={[styles.progressTrack, { backgroundColor: theme.backgroundSelected }]}>
-      <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: theme.accent }]} />
+      <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: color ?? theme.accent }]} />
     </View>
   );
 }
@@ -250,10 +323,7 @@ const BARS = [10, 18, 28, 16, 34, 44, 26, 38, 52, 30, 20, 40, 56, 36, 24, 46, 30
 export function Waveform({ color, active = true }: { color?: string; active?: boolean }) {
   const theme = useTheme();
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={styles.waveform}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waveform}>
       {BARS.map((h, i) => (
         <View
           key={i}
@@ -262,7 +332,7 @@ export function Waveform({ color, active = true }: { color?: string; active?: bo
             height: active ? h : 6,
             borderRadius: 3,
             backgroundColor: color ?? theme.accent,
-            opacity: active ? 1 : 0.5,
+            opacity: active ? 1 : 0.4,
           }}
         />
       ))}
@@ -270,7 +340,7 @@ export function Waveform({ color, active = true }: { color?: string; active?: bo
   );
 }
 
-export function Avatar({ letter, size = 44 }: { letter: string; size?: number }) {
+export function Avatar({ letter, size = 44, ring }: { letter: string; size?: number; ring?: string }) {
   const theme = useTheme();
   return (
     <View
@@ -283,8 +353,19 @@ export function Avatar({ letter, size = 44 }: { letter: string; size?: number })
         backgroundColor: theme.accent,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: ring ? 3 : 0,
+        borderColor: ring,
       }}>
-      <T style={{ color: theme.onAccent, fontWeight: '800', fontSize: size * 0.42 }}>{letter}</T>
+      <T style={{ color: theme.onAccent, fontFamily: FONT.extrabold, fontSize: size * 0.4, lineHeight: size * 0.5 }}>{letter}</T>
+    </View>
+  );
+}
+
+export function SectionHeader({ title, action, href }: { title: string; action?: string; href?: Href }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <T variant="heading">{title}</T>
+      {action && href ? <Button label={action} variant="ghost" compact href={href} style={styles.sectionAction} /> : null}
     </View>
   );
 }
@@ -292,6 +373,7 @@ export function Avatar({ letter, size = 44 }: { letter: string; size?: number })
 /** A tappable list row with an icon tile, two lines of text and a value on the right. */
 export function ListRow({
   icon,
+  tone = 'accent',
   title,
   subtitle,
   value,
@@ -299,6 +381,7 @@ export function ListRow({
   href,
 }: {
   icon?: IconName;
+  tone?: 'accent' | 'reward';
   title: string;
   subtitle?: string;
   value?: string;
@@ -306,6 +389,7 @@ export function ListRow({
   href?: Href;
 }) {
   const theme = useTheme();
+  const shadow = useShadow();
   return (
     <Pressable
       accessibilityRole="button"
@@ -317,16 +401,13 @@ export function ListRow({
         styles.card,
         styles.listRow,
         {
-          backgroundColor: theme.backgroundElement,
+          backgroundColor: theme.background,
           borderColor: theme.backgroundSelected,
-          opacity: pressed ? 0.8 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+          ...shadow,
         },
       ]}>
-      {icon ? (
-        <View style={[styles.iconTile, { backgroundColor: theme.accentSoft }]}>
-          <Icon name={icon} color={theme.accentText} />
-        </View>
-      ) : null}
+      {icon ? <IconTile icon={icon} tone={tone} /> : null}
       <View style={styles.flex}>
         <T variant="bodyStrong">{title}</T>
         {subtitle ? (
@@ -336,9 +417,11 @@ export function ListRow({
         ) : null}
       </View>
       {value ? (
-        <T variant="smallStrong" color="accentText">
-          {value}
-        </T>
+        <View style={[styles.valuePill, { backgroundColor: theme.accentSoft }]}>
+          <T variant="caption" color="accentText" style={{ fontFamily: FONT.bold }}>
+            {value}
+          </T>
+        </View>
       ) : (
         <Icon name="chevron" size={18} color={theme.textSecondary} />
       )}
@@ -381,10 +464,11 @@ export function Header({
 }
 
 /**
- * Page frame: safe areas, centred column on wide screens, optional fixed header and footer.
+ * Page frame: browser tab title, safe areas, centred column on wide screens, optional fixed header and footer.
  * `tabs` adds room for the tab bar (top bar on web, bottom bar on phones).
  */
 export function Screen({
+  title,
   children,
   header,
   footer,
@@ -392,6 +476,7 @@ export function Screen({
   scroll = true,
   gap = 16,
 }: {
+  title?: string;
   children: ReactNode;
   header?: ReactNode;
   footer?: ReactNode;
@@ -402,21 +487,18 @@ export function Screen({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const top = isWeb ? (tabs ? 96 : 24) : insets.top + 8;
-  const bottom = tabs
-    ? isWeb
-      ? 32
-      : insets.bottom + BottomTabInset + 16
-    : insets.bottom + 16;
+  const top = isWeb ? (tabs ? 104 : 28) : insets.top + 8;
+  const bottom = tabs ? (isWeb ? 40 : insets.bottom + BottomTabInset + 20) : insets.bottom + 20;
 
-  const body = (
-    <View style={[styles.column, { gap }]}>{children}</View>
-  );
+  const body = <View style={[styles.column, { gap }]}>{children}</View>;
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.flex, { backgroundColor: theme.background }]}>
+      <Head>
+        <title>{title ? `${title} · ${APP_NAME}` : APP_NAME}</title>
+      </Head>
       {header ? (
         <View style={[styles.centerRow, { paddingTop: top }]}>
           <View style={styles.column}>{header}</View>
@@ -426,20 +508,16 @@ export function Screen({
         <ScrollView
           style={styles.flex}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             alignItems: 'center',
             paddingTop: header ? 8 : top,
-            paddingBottom: footer ? 16 : bottom,
+            paddingBottom: footer ? 20 : bottom,
           }}>
           {body}
         </ScrollView>
       ) : (
-        <View
-          style={[
-            styles.flex,
-            styles.centerRow,
-            { paddingTop: header ? 8 : top, paddingBottom: footer ? 16 : bottom },
-          ]}>
+        <View style={[styles.flex, styles.centerRow, { paddingTop: header ? 8 : top, paddingBottom: footer ? 20 : bottom }]}>
           {body}
         </View>
       )}
@@ -448,7 +526,7 @@ export function Screen({
           style={[
             styles.centerRow,
             {
-              paddingTop: 12,
+              paddingTop: 14,
               paddingBottom: isWeb ? 20 : insets.bottom + 12,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: theme.backgroundSelected,
@@ -468,8 +546,8 @@ const styles = StyleSheet.create({
   column: { width: '100%', maxWidth: 560, paddingHorizontal: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 8 },
   button: {
-    minHeight: 52,
-    paddingHorizontal: 20,
+    minHeight: 54,
+    paddingHorizontal: 22,
     borderRadius: 999,
     borderWidth: 1.5,
     flexDirection: 'row',
@@ -478,7 +556,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   buttonCompact: { minHeight: 44, paddingHorizontal: 16 },
-  card: { borderRadius: 20, borderWidth: 1, padding: 16 },
+  card: { borderRadius: 22, borderWidth: 1, padding: 16 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,9 +566,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
   },
-  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3 },
+  decorBig: { position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 28, right: -80, top: -90, opacity: 0.1 },
+  decorSmall: { position: 'absolute', width: 90, height: 90, borderRadius: 45, right: 40, bottom: -50, opacity: 0.08 },
+  progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: 8, borderRadius: 4 },
   waveform: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 72 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
-  iconTile: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  valuePill: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  sectionAction: { minHeight: 36, paddingHorizontal: 8 },
 });

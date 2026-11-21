@@ -6,7 +6,7 @@ import { resetOnboarding } from '@/lib/onboarding';
 
 export default function SettingsScreen() {
   return (
-    <Screen header={<Header title="Appearance" />}>
+    <Screen title="Appearance" header={<Header title="Appearance" />}>
       <ThemeSettings />
       <T variant="heading">Testing</T>
       <Button

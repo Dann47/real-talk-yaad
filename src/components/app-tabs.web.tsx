@@ -56,11 +56,20 @@ export function CustomTabList(props: TabListProps) {
       <View
         style={[
           styles.innerContainer,
-          { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
+          {
+            backgroundColor: theme.background,
+            borderColor: theme.backgroundSelected,
+            boxShadow: `0 4px 20px ${theme.shadow}`,
+          },
         ]}>
-        <T variant="bodyStrong" style={styles.brandText}>
-          Real Talk Yaad
-        </T>
+        <View style={styles.brand}>
+          <View style={[styles.logo, { backgroundColor: theme.accent }]}>
+            <T variant="caption" style={{ color: theme.onAccent }}>
+              RT
+            </T>
+          </View>
+          <T variant="bodyStrong">Real Talk Yaad</T>
+        </View>
         <View style={styles.tabs}>{props.children}</View>
       </View>
     </View>
@@ -88,8 +97,18 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
-  brandText: {
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     marginRight: 'auto',
+  },
+  logo: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabs: {
     flexDirection: 'row',

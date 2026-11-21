@@ -19,7 +19,7 @@ export default function VerifyScreen() {
 
   if (index >= verifyItems.length) {
     return (
-      <Screen header={<Header title="Verify corrections" subtitle="All done" />} footer={<Button label="Back to work" onPress={goBack} />}>
+      <Screen title="Verify" header={<Header title="Verify corrections" subtitle="All done" />} footer={<Button label="Back to work" onPress={goBack} />}>
         <Card tone="soft" style={styles.gap}>
           <Icon name="check" size={32} color={theme.accentText} />
           <T variant="title">Thanks for checking!</T>
@@ -35,6 +35,7 @@ export default function VerifyScreen() {
 
   return (
     <Screen
+      title="Verify"
       header={
         <Header
           title="Verify corrections"

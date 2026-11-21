@@ -39,7 +39,7 @@ export default function RecordScreen() {
 
   if (done) {
     return (
-      <Screen header={<Header title="Record" subtitle="All lines done" />} footer={<Button label="Back to work" onPress={goBack} />}>
+      <Screen title="Record" header={<Header title="Record" subtitle="All lines done" />} footer={<Button label="Back to work" onPress={goBack} />}>
         <Card tone="soft" style={styles.gap}>
           <Icon name="check" size={32} color={theme.accentText} />
           <T variant="title">Nice work!</T>
@@ -53,6 +53,7 @@ export default function RecordScreen() {
 
   return (
     <Screen
+      title="Record"
       header={<Header title="Record" subtitle={`Line ${line + 1} of ${recordLines.length} · Market day`} right={<Chip label={PAY} />} />}
       footer={
         <View style={styles.footer}>
@@ -109,9 +110,9 @@ const styles = StyleSheet.create({
   gap: { gap: 8 },
   center: { textAlign: 'center' },
   progress: { flexDirection: 'row', gap: 4 },
-  segment: { flex: 1, height: 6, borderRadius: 3 },
+  segment: { flex: 1, height: 8, borderRadius: 4 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  recordButton: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
+  recordButton: { width: 84, height: 84, borderRadius: 42, borderWidth: 5, alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' },
   dot: { width: 36, height: 36, borderRadius: 18 },
   stop: { width: 28, height: 28, borderRadius: 6 },
 });

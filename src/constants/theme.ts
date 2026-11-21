@@ -22,8 +22,11 @@ export const Colors = {
     // Money and rewards always use gold, whatever the accent.
     reward: '#F2B705',
     onReward: '#1A1400',
+    rewardSoft: '#FDF3D1',
+    rewardText: '#7A5B00',
     danger: '#B42318',
     media: '#1F3A2E',
+    shadow: 'rgba(15, 26, 20, 0.08)',
   },
   dark: {
     text: '#F4F5F7',
@@ -37,8 +40,11 @@ export const Colors = {
     accentSoft: '#0F1F19',
     reward: '#F2B705',
     onReward: '#1A1400',
+    rewardSoft: '#2A230B',
+    rewardText: '#F2B705',
     danger: '#FF8A80',
     media: '#22252D',
+    shadow: 'rgba(0, 0, 0, 0)',
   },
 } as const;
 

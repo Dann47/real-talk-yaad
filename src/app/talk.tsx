@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
-import { Button, Chip, Header, Icon, IconButton, Screen, T } from '@/components/kit';
+import { Appear, Button, Chip, Header, Icon, IconButton, Screen, T, inputText } from '@/components/kit';
 import { aiReplies, openingChat, talkTopic, type ChatMessage } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -31,6 +31,7 @@ function Bubble({ message }: { message: ChatMessage }) {
       <View
         style={[
           styles.bubble,
+          mine ? styles.myTail : styles.aiTail,
           mine
             ? { backgroundColor: theme.accent }
             : {
@@ -58,6 +59,7 @@ export default function TalkScreen() {
   const [draft, setDraft] = useState('');
   const [correcting, setCorrecting] = useState(false);
   const [earned, setEarned] = useState(45);
+  const [typing, setTyping] = useState(false);
   const replyIndex = useRef(0);
 
   const lastAi = [...messages].reverse().find((m) => m.from === 'ai');
@@ -80,14 +82,17 @@ export default function TalkScreen() {
     const reply = aiReplies[replyIndex.current % aiReplies.length];
     replyIndex.current += 1;
     setMessages((prev) => [...prev, { id: `u${Date.now()}`, from: 'me', text }]);
+    setTyping(true);
     // Placeholder reply until the AI backend is connected.
     setTimeout(() => {
+      setTyping(false);
       setMessages((prev) => [...prev, { id: `a${Date.now()}`, from: 'ai', text: reply }]);
-    }, 700);
+    }, 1100);
   };
 
   return (
     <Screen
+      title="Talk with the AI"
       header={
         <Header title="Talk with the AI" subtitle={`Topic: ${talkTopic}`} right={<Chip label={`J$${earned} so far`} />} />
       }
@@ -122,6 +127,7 @@ export default function TalkScreen() {
               returnKeyType="send"
               style={[
                 styles.input,
+                inputText,
                 {
                   color: theme.text,
                   backgroundColor: theme.backgroundElement,
@@ -134,8 +140,21 @@ export default function TalkScreen() {
         </View>
       }>
       {messages.map((message) => (
-        <Bubble key={message.id} message={message} />
+        <Appear key={message.id}>
+          <Bubble message={message} />
+        </Appear>
       ))}
+      {typing ? (
+        <Appear>
+          <View
+            accessibilityLabel="The AI is typing"
+            style={[styles.typing, { backgroundColor: theme.backgroundElement }]}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.5 + i * 0.2 }]} />
+            ))}
+          </View>
+        </Appear>
+      ) : null}
     </Screen>
   );
 }
@@ -145,9 +164,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   messageWrap: { alignSelf: 'flex-start', maxWidth: '85%', gap: 4 },
   mineWrap: { alignSelf: 'flex-end' },
-  bubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16 },
-  correction: { alignSelf: 'flex-end', maxWidth: '88%', padding: 14, borderRadius: 16, borderWidth: 1, gap: 4 },
+  bubble: { paddingVertical: 11, paddingHorizontal: 15, borderRadius: 20 },
+  aiTail: { borderBottomLeftRadius: 6 },
+  myTail: { borderBottomRightRadius: 6 },
+  typing: { alignSelf: 'flex-start', flexDirection: 'row', gap: 5, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, borderBottomLeftRadius: 6 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  correction: { alignSelf: 'flex-end', maxWidth: '88%', padding: 14, borderRadius: 20, borderBottomRightRadius: 6, borderWidth: 1, gap: 4 },
   footer: { gap: 10 },
   correctButton: { alignSelf: 'flex-start' },
-  input: { flex: 1, minHeight: 48, borderWidth: 1, borderRadius: 24, paddingHorizontal: 16, fontSize: 16 },
+  input: { flex: 1, minHeight: 48, borderWidth: 1.5, borderRadius: 24, paddingHorizontal: 16 },
 });

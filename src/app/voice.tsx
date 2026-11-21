@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { Button, Card, Chip, Header, Icon, IconButton, Screen, T, Waveform, goBack } from '@/components/kit';
+import { Button, Card, Chip, Header, Icon, IconButton, Screen, T, Waveform, goBack, inputText } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function VoiceScreen() {
@@ -12,6 +12,7 @@ export default function VoiceScreen() {
 
   return (
     <Screen
+      title="Voice chat"
       header={<Header title="Voice chat" subtitle="Topic: At the market" right={<Chip label="J$30 so far" />} />}
       footer={
         <View style={styles.controls}>
@@ -51,7 +52,7 @@ export default function VoiceScreen() {
             onChangeText={setHeard}
             multiline
             autoFocus
-            style={[styles.input, { color: theme.text, borderColor: theme.accent, backgroundColor: theme.background }]}
+            style={[styles.input, inputText, { color: theme.text, borderColor: theme.accent, backgroundColor: theme.background }]}
           />
         ) : (
           <T variant="body">"{heard}"</T>
@@ -72,8 +73,8 @@ export default function VoiceScreen() {
 const styles = StyleSheet.create({
   gap: { gap: 8 },
   start: { alignSelf: 'flex-start' },
-  input: { minHeight: 64, borderWidth: 1.5, borderRadius: 12, padding: 10, fontSize: 16, textAlignVertical: 'top' },
+  input: { minHeight: 64, borderWidth: 1.5, borderRadius: 14, padding: 12, textAlignVertical: 'top' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   talk: { alignItems: 'center', gap: 6 },
-  mic: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
+  mic: { width: 92, height: 92, borderRadius: 46, alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' },
 });
