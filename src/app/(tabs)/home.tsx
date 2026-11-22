@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   Chip,
+  Icon,
   IconTile,
   Notice,
   ProgressBar,
@@ -19,6 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { displayName, useAuth } from '@/lib/auth';
 import { levelFor, useHomeSummary } from '@/lib/earnings';
 import { money } from '@/lib/format';
+import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { payLabel, useRates } from '@/lib/rates';
 import { tasks } from '@/lib/tasks';
 
@@ -46,6 +48,9 @@ export default function HomeScreen() {
   const { profile, user: account } = useAuth();
   const name = displayName(profile, account);
   const { summary, error, refreshing, refresh } = useHomeSummary();
+  const [hidden, toggleHidden] = useHideAmounts();
+  /** An amount, or dots when the person has hidden their balance. */
+  const show = (amount: number | undefined, decimals = 0) => (amount === undefined ? DASH : hidden ? HIDDEN : money(amount, decimals));
   const level = levelFor(summary?.approvedCount ?? 0);
   const weekProgress = summary ? summary.thisWeek / summary.weekGoal : 0;
   const streak = summary?.streakDays ?? 0;
@@ -82,19 +87,33 @@ export default function HomeScreen() {
 
       <Appear index={1}>
         <Card tone="hero" style={styles.hero}>
-          <T variant="overline" style={{ color: theme.onAccent, opacity: 0.85 }}>
-            Available balance
-          </T>
-          <View style={styles.balanceRow}>
-            <T variant="display" style={{ color: theme.onAccent }}>
-              {summary ? money(summary.balance) : DASH}
+          <View style={styles.heroTop}>
+            <T variant="overline" style={[styles.flex, { color: theme.onAccent, opacity: 0.85 }]}>
+              Available balance
             </T>
-            {summary && summary.today > 0 ? <Chip tone="reward" icon="trend" label={`+${money(summary.today, 0)} today`} /> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={hidden ? 'Show balance' : 'Hide balance'}
+              onPress={toggleHidden}
+              hitSlop={10}
+              style={styles.eye}>
+              <Icon name={hidden ? 'eye' : 'eyeOff'} size={16} color={theme.onAccent} />
+            </Pressable>
+          </View>
+          <View style={styles.balanceRow}>
+            <T variant="display" style={{ color: theme.onAccent }} accessibilityLabel={hidden ? 'Balance hidden' : undefined}>
+              {show(summary?.balance, 2)}
+            </T>
+            {summary && summary.today > 0 && !hidden ? (
+              <Chip tone="reward" icon="trend" label={`+${money(summary.today, 0)} today`} />
+            ) : null}
           </View>
           <T variant="small" style={{ color: theme.onAccent }}>
             {!summary
               ? 'Loading your earnings...'
-              : summary.pending > 0
+              : hidden
+                ? 'Amounts hidden · tap the eye to show them'
+                : summary.pending > 0
                 ? `${money(summary.pending, 0)} waiting for other speakers to check`
                 : summary.totalCount
                   ? 'Nothing waiting for review'
@@ -103,10 +122,10 @@ export default function HomeScreen() {
           <View style={styles.goal}>
             <View style={styles.goalLabels}>
               <T variant="caption" style={{ color: theme.onAccent }}>
-                This week {summary ? money(summary.thisWeek, 0) : DASH}
+                This week {show(summary?.thisWeek)}
               </T>
               <T variant="caption" style={{ color: theme.onAccent }}>
-                Goal {summary ? money(summary.weekGoal, 0) : DASH}
+                Goal {show(summary?.weekGoal)}
               </T>
             </View>
             <ProgressBar value={weekProgress} label="Weekly earning goal" color={theme.reward} />
@@ -169,6 +188,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hero: { gap: 4, padding: 22 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eye: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
   balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
   goal: { gap: 8, marginTop: 14 },
   goalLabels: { flexDirection: 'row', justifyContent: 'space-between' },

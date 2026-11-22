@@ -6,6 +6,7 @@ import { Appear, Card, Icon, IconTile, Notice, ProgressBar, Screen, SectionHeade
 import { useTheme } from '@/hooks/use-theme';
 import { useHomeSummary } from '@/lib/earnings';
 import { money } from '@/lib/format';
+import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { payLabel, useRates } from '@/lib/rates';
 import { tasks, type Task } from '@/lib/tasks';
 
@@ -96,6 +97,8 @@ export default function WorkScreen() {
   const theme = useTheme();
   const rates = useRates();
   const { summary, error, refreshing, refresh } = useHomeSummary();
+  const [hidden] = useHideAmounts();
+  const show = (amount: number | undefined) => (amount === undefined ? DASH : hidden ? HIDDEN : money(amount, 0));
   const goal = summary ? Math.min(1, summary.thisWeek / summary.weekGoal) : 0;
   const toGo = summary ? Math.max(0, summary.weekGoal - summary.thisWeek) : 0;
 
@@ -119,9 +122,9 @@ export default function WorkScreen() {
         <Card tone="reward" style={styles.summary}>
           <View style={styles.summaryStats}>
             {[
-              { label: 'Today', value: summary ? money(summary.today, 0) : DASH },
-              { label: 'This week', value: summary ? money(summary.thisWeek, 0) : DASH },
-              { label: 'In review', value: summary ? money(summary.pending, 0) : DASH },
+              { label: 'Today', value: show(summary?.today) },
+              { label: 'This week', value: show(summary?.thisWeek) },
+              { label: 'In review', value: show(summary?.pending) },
             ].map((stat, i) => (
               <View key={stat.label} style={[styles.summaryStat, i === 0 ? styles.firstStat : [styles.summaryDivider, { borderLeftColor: theme.reward }]]}>
                 <T variant="heading">{stat.value}</T>
@@ -135,7 +138,9 @@ export default function WorkScreen() {
           <T variant="caption" color="rewardText">
             {!summary
               ? 'Loading...'
-              : toGo > 0
+              : hidden
+                ? 'Amounts hidden'
+                : toGo > 0
                 ? `${money(toGo, 0)} to go to your ${money(summary.weekGoal, 0)} weekly goal`
                 : 'Weekly goal reached. Big up!'}
           </T>

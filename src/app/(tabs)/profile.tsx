@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { displayName, useAuth } from '@/lib/auth';
 import { levelFor } from '@/lib/earnings';
 import { money } from '@/lib/format';
+import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { badgesFor, lastSevenDays, shortMoney, streakDays, useMe, type Activity } from '@/lib/profile';
 import { tasks } from '@/lib/tasks';
 
@@ -66,6 +67,8 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const { profile, user: account, signOut } = useAuth();
   const { summary, leaders, activity, error, refreshing, refresh } = useMe();
+  const [hidden] = useHideAmounts();
+  const show = (amount: number) => (hidden ? HIDDEN : money(amount, 0));
   const week = lastSevenDays(activity ?? []);
   const weekTotal = week.reduce((sum, d) => sum + d.amount, 0);
   const tallest = Math.max(1, ...week.map((d) => d.amount));
@@ -149,7 +152,7 @@ export default function ProfileScreen() {
             label: matchRate !== null ? 'Votes matched' : 'Approved',
             icon: 'check' as const,
           },
-          { value: summary ? shortMoney(summary.earnedTotal) : DASH, label: 'Earned', icon: 'wallet' as const },
+          { value: !summary ? DASH : hidden ? 'J$ ••' : shortMoney(summary.earnedTotal), label: 'Earned', icon: 'wallet' as const },
         ].map((stat) => (
           <Card key={stat.label} style={styles.stat}>
             <Icon name={stat.icon} size={16} color={theme.accentText} />
@@ -165,7 +168,7 @@ export default function ProfileScreen() {
           <View style={[styles.pending, { backgroundColor: theme.rewardSoft }]}>
             <Icon name="sparkles" size={16} color={theme.rewardText} />
             <T variant="small" color="rewardText" style={styles.flex}>
-              {money(summary.pendingTotal, 0)} more is waiting for other speakers to check.
+              {hidden ? 'More money is' : `${money(summary.pendingTotal, 0)} more is`} waiting for other speakers to check.
             </T>
           </View>
         </Appear>
@@ -179,7 +182,7 @@ export default function ProfileScreen() {
               <T variant="overline" color="textSecondary">
                 Last 7 days
               </T>
-              <T variant="title">{activity ? money(weekTotal, 0) : DASH}</T>
+              <T variant="title">{activity ? show(weekTotal) : DASH}</T>
             </View>
             <T variant="caption" color="textSecondary">
               {activity ? `${week.reduce((n, d) => n + d.count, 0)} tasks` : ''}
@@ -280,7 +283,7 @@ export default function ProfileScreen() {
                   </T>
                 </View>
                 <T variant="smallStrong" color={stats?.earned ? 'rewardText' : 'textSecondary'}>
-                  {summary ? money(stats?.earned ?? 0, 0) : DASH}
+                  {summary ? show(stats?.earned ?? 0) : DASH}
                 </T>
               </Pressable>
             );
@@ -358,7 +361,7 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.activityRight}>
                     <T variant="smallStrong" color={a.status === 'rejected' ? 'textSecondary' : 'rewardText'}>
-                      {a.status === 'rejected' ? 'J$0' : `+${money(a.amount_jmd, 0)}`}
+                      {a.status === 'rejected' ? 'J$0' : hidden ? '+J$ •••' : `+${money(a.amount_jmd, 0)}`}
                     </T>
                     <StatusPill status={a.status} />
                   </View>
@@ -379,7 +382,7 @@ export default function ProfileScreen() {
             { icon: 'person' as const, title: 'Account and password', subtitle: account?.email ?? 'Email and password', href: '/account' },
             { icon: 'settings' as const, title: 'Appearance', subtitle: 'Light, dark and accent colour', href: '/settings' },
             { icon: 'shield' as const, title: 'Consent and data', subtitle: 'How your voice and text are used', href: '/consent' },
-            { icon: 'wallet' as const, title: 'Payout method', subtitle: 'Coming soon', href: '/wallet' },
+            { icon: 'wallet' as const, title: 'Payout method', subtitle: 'Your bank account or Lynk', href: '/payout-method' },
           ].map((row, i) => (
             <Pressable
               key={row.title}

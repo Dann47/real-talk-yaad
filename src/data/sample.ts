@@ -12,13 +12,6 @@ export const wallet = {
   payoutMethod: 'Bank card •••• 4821',
 };
 
-export const history: { id: string; kind: 'earn' | 'store' | 'cashout'; label: string; when: string; amount: number }[] = [
-  { id: 'h1', kind: 'earn', label: 'Talk with the AI', when: 'Today', amount: 150 },
-  { id: 'h2', kind: 'earn', label: 'Verified 10 corrections', when: 'Today', amount: 60 },
-  { id: 'h3', kind: 'store', label: 'Store: Yaad Gold theme', when: 'Yesterday', amount: -300 },
-  { id: 'h4', kind: 'cashout', label: 'Cash out to card •••• 4821', when: 'Nov 10', amount: -2000 },
-];
-
 export type StoreCategory = 'Themes' | 'Badges' | 'Stickers' | 'Sounds';
 
 export const storeItems: {
