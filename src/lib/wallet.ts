@@ -12,6 +12,8 @@ export type WalletSummary = {
   /** Cash-outs requested or being paid. */
   onTheWay: number;
   paidOut: number;
+  /** Spent in the Store. */
+  spent: number;
   lifetime: number;
   minCashout: number;
   fee: number;
@@ -39,6 +41,8 @@ export type Payout = {
   note: string | null;
   created_at: string;
 };
+
+export type PurchaseRow = { id: number; price_jmd: number; created_at: string; name: string; category: string };
 
 export type EarningRow = {
   task: string;
@@ -71,7 +75,7 @@ export function methodLabel(method: Partial<PayoutMethod> | null | undefined) {
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
 export async function loadWallet() {
-  const [summaryResult, methodResult, payoutResult, earningResult] = await Promise.all([
+  const [summaryResult, methodResult, payoutResult, earningResult, purchaseResult] = await Promise.all([
     supabase.rpc('wallet_summary'),
     supabase.from('payout_methods').select('kind, bank_name, account_type, holder_name, account_last4, lynk_handle').maybeSingle(),
     supabase.from('payouts').select('id, amount_jmd, fee_jmd, method, status, note, created_at').order('created_at', { ascending: false }).limit(50),
@@ -80,6 +84,11 @@ export async function loadWallet() {
       .select('task, ref_id, amount_jmd, status, created_at, detail')
       .order('created_at', { ascending: false })
       .limit(150),
+    supabase
+      .from('purchases')
+      .select('id, price_jmd, created_at, store_items(name, category)')
+      .order('created_at', { ascending: false })
+      .limit(50),
   ]);
   if (summaryResult.error) throw new Error('Could not load your wallet. Pull down to try again.');
   const d = (summaryResult.data ?? {}) as Record<string, unknown>;
@@ -88,6 +97,7 @@ export async function loadWallet() {
     pending: num(d.pending),
     onTheWay: num(d.on_the_way),
     paidOut: num(d.paid_out),
+    spent: num(d.spent),
     lifetime: num(d.lifetime),
     minCashout: num(d.min_cashout) || 1000,
     fee: num(d.fee),
@@ -98,6 +108,15 @@ export async function loadWallet() {
     method: (methodResult.data as PayoutMethod | null) ?? null,
     payouts: ((payoutResult.data ?? []) as Payout[]).map((p) => ({ ...p, amount_jmd: num(p.amount_jmd), fee_jmd: num(p.fee_jmd) })),
     earnings: ((earningResult.data ?? []) as EarningRow[]).map((e) => ({ ...e, amount_jmd: num(e.amount_jmd) })),
+    purchases: ((purchaseResult.data ?? []) as unknown as {
+      id: number;
+      price_jmd: number;
+      created_at: string;
+      store_items: { name: string; category: string } | { name: string; category: string }[] | null;
+    }[]).map((p) => {
+      const item = Array.isArray(p.store_items) ? p.store_items[0] : p.store_items;
+      return { id: p.id, price_jmd: num(p.price_jmd), created_at: p.created_at, name: item?.name ?? 'Store item', category: item?.category ?? '' };
+    }) as PurchaseRow[],
   };
 }
 

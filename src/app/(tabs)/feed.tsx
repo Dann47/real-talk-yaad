@@ -2,11 +2,12 @@ import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-ro
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { Appear, Avatar, Button, Card, Icon, IconTile, Notice, Screen, T } from '@/components/kit';
+import { Appear, Avatar, Button, Card, Icon, IconTile, NameBadge, Notice, Screen, T } from '@/components/kit';
 import { PostActions } from '@/components/post-actions';
 import { PostMedia } from '@/components/post-media';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
+import { usePeopleLooks, type Look } from '@/lib/cosmetics';
 import { money } from '@/lib/format';
 import { useRates } from '@/lib/rates';
 import { FEED_PAGE, loadFeed, setLiked, timeAgo, type FeedFilter, type FeedPost } from '@/lib/teach';
@@ -26,10 +27,12 @@ const STATUS: Record<NonNullable<FeedPost['my_status']>, string> = {
 function PostCard({
   post,
   pay,
+  look,
   onLike,
   onMenu,
 }: {
   post: FeedPost;
+  look: Look;
   pay: number | null;
   onLike: () => void;
   onMenu: () => void;
@@ -40,9 +43,12 @@ function PostCard({
   return (
     <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
       <View style={styles.author}>
-        <Avatar letter={post.author[0]?.toUpperCase() ?? 'R'} size={34} />
+        <Avatar letter={post.author[0]?.toUpperCase() ?? 'R'} size={34} frame={look.frame?.colors} />
         <View style={styles.flex}>
-          <T variant="bodyStrong">{post.is_mine ? 'You' : post.author}</T>
+          <View style={styles.nameRow}>
+            <T variant="bodyStrong">{post.is_mine ? 'You' : post.author}</T>
+            <NameBadge badge={look.badge} small />
+          </View>
           <T variant="caption" color="textSecondary">
             {timeAgo(post.created_at)}
           </T>
@@ -126,6 +132,7 @@ export default function FeedScreen() {
   const [menuPost, setMenuPost] = useState<FeedPost | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const pay = rates.teach?.amount_jmd ?? null;
+  const lookOf = usePeopleLooks((posts ?? []).map((p) => p.author_id));
 
   const load = useCallback(async (which: FeedFilter) => {
     setRefreshing(true);
@@ -249,7 +256,7 @@ export default function FeedScreen() {
       ) : (
         posts.map((post, i) => (
           <Appear key={post.id} index={Math.min(i, 4) + 2}>
-            <PostCard post={post} pay={pay} onLike={() => like(post)} onMenu={() => setMenuPost(post)} />
+            <PostCard post={post} pay={pay} look={lookOf(post.author_id)} onLike={() => like(post)} onMenu={() => setMenuPost(post)} />
           </Appear>
         ))
       )}
@@ -281,6 +288,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28 },
   card: { gap: 12, padding: 12, borderRadius: 24, borderWidth: 1 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   menu: { paddingHorizontal: 8 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6 },

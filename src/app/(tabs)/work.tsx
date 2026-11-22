@@ -1,10 +1,11 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ContinueWork } from '@/components/continue-chat';
 import { Appear, Card, Icon, IconTile, Notice, ProgressBar, Screen, SectionHeader, T, type IconName } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
-import { useHomeSummary } from '@/lib/earnings';
+import { loadPayLimits, useHomeSummary, type PayLimits } from '@/lib/earnings';
 import { money } from '@/lib/format';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { payLabel, useRates } from '@/lib/rates';
@@ -98,6 +99,13 @@ export default function WorkScreen() {
   const rates = useRates();
   const { summary, error, refreshing, refresh } = useHomeSummary();
   const [hidden] = useHideAmounts();
+  const [limits, setLimits] = useState<PayLimits | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      loadPayLimits().then(setLimits);
+    }, []),
+  );
+  const capLeft = limits && limits.dailyCap > 0 ? Math.max(0, limits.dailyCap - limits.earnedToday) : null;
   const show = (amount: number | undefined) => (amount === undefined ? DASH : hidden ? HIDDEN : money(amount, 0));
   const goal = summary ? Math.min(1, summary.thisWeek / summary.weekGoal) : 0;
   const toGo = summary ? Math.max(0, summary.weekGoal - summary.thisWeek) : 0;
@@ -146,6 +154,24 @@ export default function WorkScreen() {
           </T>
         </Card>
       </Appear>
+
+      {limits?.budgetReached ? (
+        <Notice tone="info" text="Paid work is full for this month. You can still practise, and it still teaches the AI." />
+      ) : limits && capLeft !== null ? (
+        <Appear index={1}>
+          <View style={[styles.limit, { backgroundColor: theme.backgroundElement, borderColor: capLeft === 0 ? theme.reward : theme.backgroundSelected }]}>
+            <View style={styles.limitTop}>
+              <Icon name="shield" size={14} color={theme.textSecondary} />
+              <T variant="caption" color="textSecondary" style={styles.flex}>
+                {capLeft === 0
+                  ? "You've reached today's pay limit. Work still counts for the AI; pay resets at midnight."
+                  : `Daily pay limit: ${hidden ? HIDDEN : money(capLeft, 0)} left of ${money(limits.dailyCap, 0)}`}
+              </T>
+            </View>
+            <ProgressBar value={limits.earnedToday / limits.dailyCap} label="Daily pay limit used" color={capLeft === 0 ? theme.reward : theme.accent} />
+          </View>
+        </Appear>
+      ) : null}
 
       {/* Unfinished work: chats and the record set you left */}
       <ContinueWork />
@@ -197,6 +223,8 @@ const styles = StyleSheet.create({
   summaryStat: { flex: 1, gap: 2, paddingHorizontal: 10 },
   summaryDivider: { borderLeftWidth: StyleSheet.hairlineWidth },
   firstStat: { paddingLeft: 0 },
+  limit: { gap: 8, padding: 12, borderRadius: 16, borderWidth: 1 },
+  limitTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   how: { flexDirection: 'row', gap: 6 },
   howStep: { flex: 1, alignItems: 'center', gap: 4 },
   howIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', zIndex: 1 },

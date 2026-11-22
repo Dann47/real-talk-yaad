@@ -91,7 +91,7 @@ export function CorrectionCard({ correction }: { correction: Correction }) {
             ? correction.status === 'pending'
               ? ` · ${money(correction.amount_jmd, 0)} when verified`
               : ''
-            : ' · over this chat’s paid limit'}
+            : ' · not paid (greeting fix, or over a pay limit)'}
         </T>
       </View>
     </Appear>

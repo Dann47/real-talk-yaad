@@ -97,3 +97,17 @@ export function useHomeSummary() {
 
   return { summary, error, refreshing, refresh };
 }
+
+export type PayLimits = { dailyCap: number; earnedToday: number; budgetReached: boolean };
+
+/** Today's earning limit (0 = none), how much of it is used, and whether this month's pay budget is used up. */
+export async function loadPayLimits(): Promise<PayLimits | null> {
+  const { data, error } = await supabase.rpc('pay_limits');
+  if (error || !data) return null;
+  const d = data as Record<string, unknown>;
+  return {
+    dailyCap: Number(d.daily_cap ?? 0) || 0,
+    earnedToday: Number(d.earned_today ?? 0) || 0,
+    budgetReached: d.budget_reached === true,
+  };
+}

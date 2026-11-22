@@ -6,7 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Appear, Button, Card, Icon, IconTile, Notice, ProgressBar, Screen, SectionHeader, T, type IconName } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
 import { money } from '@/lib/format';
-import { cancelPayout, dayLabel, methodLabel, useWallet, type EarningRow, type Payout, type PayoutStatus } from '@/lib/wallet';
+import {
+  cancelPayout,
+  dayLabel,
+  methodLabel,
+  useWallet,
+  type EarningRow,
+  type Payout,
+  type PayoutStatus,
+  type PurchaseRow,
+} from '@/lib/wallet';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 
 /** Counts up to a new amount instead of jumping (and down after a cash-out). */
@@ -44,12 +53,13 @@ const fullDate = (iso: string) =>
 const DASH = '—';
 const PAGE = 25;
 
-type Filter = 'all' | 'earned' | 'review' | 'cashouts';
+type Filter = 'all' | 'earned' | 'review' | 'cashouts' | 'store';
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'earned', label: 'Paid' },
   { id: 'review', label: 'In review' },
   { id: 'cashouts', label: 'Cash-outs' },
+  { id: 'store', label: 'Store' },
 ];
 
 const TASK: Record<string, { icon: IconName; label: string; short: string }> = {
@@ -131,7 +141,8 @@ const PAYOUT_TEXT: Record<PayoutStatus, string> = {
 
 type Line =
   | { kind: 'earning'; key: string; at: string; row: EarningRow }
-  | { kind: 'payout'; key: string; at: string; row: Payout };
+  | { kind: 'payout'; key: string; at: string; row: Payout }
+  | { kind: 'purchase'; key: string; at: string; row: PurchaseRow };
 
 function StatusPill({ tone, label }: { tone: 'good' | 'wait' | 'off'; label: string }) {
   const theme = useTheme();
@@ -193,13 +204,21 @@ function DetailSheet({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   if (!line) return null;
-  const isPayout = line.kind === 'payout';
+  const isPayout = line.kind !== 'earning';
   const rows: { label: string; value: string }[] = [];
   let title = '';
   let amount = '';
   let status = '';
   let explain = '';
-  if (line.kind === 'payout') {
+  if (line.kind === 'purchase') {
+    const b = line.row;
+    title = b.name;
+    amount = `−${money(b.price_jmd)}`;
+    status = 'Bought in the Store';
+    rows.push({ label: 'When', value: fullDate(b.created_at) });
+    rows.push({ label: 'Reference', value: `RTY-S${String(b.id).padStart(6, '0')}` });
+    explain = 'Store items are yours to keep and wear. They can’t be refunded or cashed out.';
+  } else if (line.kind === 'payout') {
     const p = line.row;
     title = 'Cash out';
     amount = `−${money(p.amount_jmd)}`;
@@ -240,7 +259,11 @@ function DetailSheet({
       <View style={[styles.sheet, { backgroundColor: theme.background, paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
         <View style={[styles.handle, { backgroundColor: theme.backgroundSelected }]} />
         <View style={styles.sheetTop}>
-          <IconTile icon={isPayout ? 'cashout' : (TASK[(line.row as EarningRow).task]?.icon ?? 'sparkles')} tone={isPayout ? 'reward' : 'accent'} size={44} />
+          <IconTile
+            icon={line.kind === 'purchase' ? 'bag' : isPayout ? 'cashout' : (TASK[(line.row as EarningRow).task]?.icon ?? 'sparkles')}
+            tone={isPayout ? 'reward' : 'accent'}
+            size={44}
+          />
           <View style={styles.flex}>
             <T variant="heading">{title}</T>
             <T variant="caption" color="textSecondary">
@@ -313,9 +336,11 @@ export default function WalletScreen() {
     if (!data) return [];
     const earned: Line[] = data.earnings.map((row) => ({ kind: 'earning', key: `e-${row.task}-${row.ref_id}`, at: row.created_at, row }));
     const paid: Line[] = data.payouts.map((row) => ({ kind: 'payout', key: `p-${row.id}`, at: row.created_at, row }));
-    const all = [...earned, ...paid].sort((a, b) => (a.at < b.at ? 1 : -1));
+    const bought: Line[] = data.purchases.map((row) => ({ kind: 'purchase', key: `s-${row.id}`, at: row.created_at, row }));
+    const all = [...earned, ...paid, ...bought].sort((a, b) => (a.at < b.at ? 1 : -1));
     return all.filter((line) => {
       if (filter === 'cashouts') return line.kind === 'payout';
+      if (filter === 'store') return line.kind === 'purchase';
       if (filter === 'earned') return line.kind === 'earning' && line.row.status === 'approved';
       if (filter === 'review') return line.kind === 'earning' && line.row.status === 'pending';
       return true;
@@ -325,10 +350,11 @@ export default function WalletScreen() {
   const counts = useMemo(() => {
     if (!data) return {} as Record<Filter, number>;
     return {
-      all: data.earnings.length + data.payouts.length,
+      all: data.earnings.length + data.payouts.length + data.purchases.length,
       earned: data.earnings.filter((e) => e.status === 'approved').length,
       review: data.earnings.filter((e) => e.status === 'pending').length,
       cashouts: data.payouts.length,
+      store: data.purchases.length,
     } as Record<Filter, number>;
   }, [data]);
 
@@ -499,6 +525,7 @@ export default function WalletScreen() {
         <Appear index={4} style={styles.lifetime}>
           <T variant="caption" color="textSecondary">
             All time: {hidden ? HIDDEN : money(summary.lifetime, 0)} earned · {hidden ? HIDDEN : money(summary.paidOut, 0)} cashed out
+            {summary.spent ? ` · ${hidden ? HIDDEN : money(summary.spent, 0)} in the Store` : ''}
           </T>
         </Appear>
       ) : null}
@@ -534,7 +561,11 @@ export default function WalletScreen() {
           <IconTile icon="wallet" tone="reward" size={44} />
           <T variant="bodyStrong">Nothing here yet</T>
           <T variant="caption" color="textSecondary" style={styles.center}>
-            {filter === 'cashouts' ? 'Your cash-outs will show here.' : 'Do a task from Work and it shows up here right away.'}
+            {filter === 'cashouts'
+              ? 'Your cash-outs will show here.'
+              : filter === 'store'
+                ? 'Things you buy in the Store show here.'
+                : 'Do a task from Work and it shows up here right away.'}
           </T>
         </Card>
       ) : null}
@@ -547,6 +578,31 @@ export default function WalletScreen() {
           <Card style={styles.history}>
             {group.lines.map((line, i) => {
               const divider = i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.backgroundSelected };
+              if (line.kind === 'purchase') {
+                const b = line.row;
+                return (
+                  <Pressable
+                    key={line.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Bought ${b.name}. Details`}
+                    onPress={() => setSelected(line)}
+                    style={({ pressed }) => [styles.historyRow, divider, { opacity: pressed ? 0.6 : 1 }]}>
+                    <IconTile icon="bag" tone="reward" size={36} />
+                    <View style={styles.flex}>
+                      <T variant="bodyStrong" numberOfLines={1}>
+                        {b.name}
+                      </T>
+                      <T variant="caption" color="textSecondary">
+                        Store
+                      </T>
+                    </View>
+                    <View style={styles.right}>
+                      <T variant="smallStrong">{hidden ? '−J$ •••' : `−${money(b.price_jmd, 0)}`}</T>
+                      <StatusPill tone="good" label="Bought" />
+                    </View>
+                  </Pressable>
+                );
+              }
               if (line.kind === 'payout') {
                 const p = line.row;
                 const gone = p.status === 'failed' || p.status === 'cancelled';

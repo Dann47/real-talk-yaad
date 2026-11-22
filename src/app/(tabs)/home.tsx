@@ -19,6 +19,7 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { displayName, useAuth } from '@/lib/auth';
 import { levelFor, useHomeSummary } from '@/lib/earnings';
+import { useMyLook } from '@/lib/cosmetics';
 import { money } from '@/lib/format';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { payLabel, useRates } from '@/lib/rates';
@@ -49,6 +50,7 @@ export default function HomeScreen() {
   const name = displayName(profile, account);
   const { summary, error, refreshing, refresh } = useHomeSummary();
   const [hidden, toggleHidden] = useHideAmounts();
+  const look = useMyLook();
   /** An amount, or dots when the person has hidden their balance. */
   const show = (amount: number | undefined, decimals = 0) => (amount === undefined ? DASH : hidden ? HIDDEN : money(amount, decimals));
   const level = levelFor(summary?.approvedCount ?? 0);
@@ -75,7 +77,7 @@ export default function HomeScreen() {
           <Chip tone={streak ? 'reward' : 'soft'} icon="flame" label={streak ? `${streak}-day streak` : 'Start a streak'} />
         ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/profile' as Href)}>
-          <Avatar letter={name[0]?.toUpperCase() ?? 'R'} />
+          <Avatar letter={name[0]?.toUpperCase() ?? 'R'} frame={look.frame?.colors} />
         </Pressable>
       </Appear>
 

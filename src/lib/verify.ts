@@ -39,7 +39,8 @@ export type VerifyItem =
 
 export type VerifyQueue = {
   items: VerifyItem[];
-  rate: number;
+  /** Pay per matching vote for each kind of item (a short clip is quicker to check than a post). */
+  rates: Record<VerifyItem['kind'], number>;
   /** Why the queue is empty: nothing to check right now, or today's limit is reached. */
   reason: 'empty' | 'limit' | null;
 };

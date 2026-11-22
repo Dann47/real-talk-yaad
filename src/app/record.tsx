@@ -9,7 +9,7 @@ import { HoldToRecord } from '@/components/hold-to-record';
 import { Appear, Button, Card, Chip, Header, Icon, IconTile, Notice, Screen, T, TextField, goBack, type IconName } from '@/components/kit';
 import { LevelMeter } from '@/components/level-meter';
 import { TakeWaveform } from '@/components/take-waveform';
-import { money } from '@/data/sample';
+import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { useRates } from '@/lib/rates';

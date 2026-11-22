@@ -11,7 +11,7 @@ import { Appear, Button, Card, Chip, Header, Icon, IconButton, Notice, Screen, T
 import { LevelMeter } from '@/components/level-meter';
 import { TopicPicker } from '@/components/topic-picker';
 import { TypingDots } from '@/components/typing-dots';
-import { money } from '@/data/sample';
+import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import type { ChatMessage } from '@/lib/chat';
 import { perUnitLabel, useRates } from '@/lib/rates';

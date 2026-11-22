@@ -40,6 +40,7 @@ import {
   loadVerifyQueue,
   verifyKey,
   type VerifyItem,
+  type VerifyQueue,
   type VoteResult,
 } from "@/lib/verify";
 
@@ -246,7 +247,7 @@ export default function VerifyScreen() {
   const playback = useAudioPlayerStatus(player);
 
   const [items, setItems] = useState<VerifyItem[] | null>(null);
-  const [rate, setRate] = useState(0);
+  const [rates, setRates] = useState<VerifyQueue["rates"] | null>(null);
   const [reason, setReason] = useState<"empty" | "limit" | null>(null);
   const [index, setIndex] = useState(0);
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
@@ -304,7 +305,7 @@ export default function VerifyScreen() {
     try {
       const queue = await loadVerifyQueue();
       setItems(queue.items);
-      setRate(queue.rate);
+      setRates(queue.rates);
       setReason(queue.reason);
     } catch (e) {
       setError((e as Error).message);
@@ -587,8 +588,8 @@ export default function VerifyScreen() {
         <Header
           title="Verify work"
           subtitle={
-            rate
-              ? `${money(rate, 0)} per matching vote`
+            rates && rates[item.kind]
+              ? `${money(rates[item.kind], 0)} for this one if your vote matches`
               : `${index + 1} of ${items.length}`
           }
           right={<Chip label={`${money(earnedNow + earnedLater, 0)} so far`} />}

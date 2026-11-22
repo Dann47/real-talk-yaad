@@ -3,11 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Confetti, FloatUp } from '@/components/celebrate';
-import { Appear, Avatar, Button, Card, Header, Icon, IconTile, Notice, Screen, T, inputText } from '@/components/kit';
+import { Appear, Avatar, Button, Card, Header, Icon, IconTile, NameBadge, Notice, Screen, T, inputText } from '@/components/kit';
 import { PostActions } from '@/components/post-actions';
 import { PostMedia } from '@/components/post-media';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
+import { usePeopleLooks } from '@/lib/cosmetics';
 import { money } from '@/lib/format';
 import { useRates } from '@/lib/rates';
 import {
@@ -47,6 +48,7 @@ export default function PostScreen() {
   const [earned, setEarned] = useState<number | null>(null);
   const [menu, setMenu] = useState(false);
   const pay = rates.teach?.amount_jmd ?? null;
+  const lookOf = usePeopleLooks(post?.author_id ? [post.author_id] : []);
 
   const load = useCallback(async () => {
     try {
@@ -143,8 +145,9 @@ export default function PostScreen() {
       </Appear>
 
       <Appear index={1} style={styles.metaRow}>
-        <Avatar letter={post.author[0]?.toUpperCase() ?? 'R'} size={32} />
+        <Avatar letter={post.author[0]?.toUpperCase() ?? 'R'} size={32} frame={lookOf(post.author_id).frame?.colors} />
         <View style={styles.flex}>
+          <NameBadge badge={lookOf(post.author_id).badge} small />
           {post.caption ? <T variant="body">{post.caption}</T> : <T variant="small" color="textSecondary">No caption</T>}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={post.liked ? 'Unlike' : 'Like'} onPress={like} hitSlop={8} style={styles.like}>

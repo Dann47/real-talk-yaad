@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useMyLook } from '@/lib/cosmetics';
+import { ThemeOverride } from '@/theme/override';
 
 export const APP_NAME = 'Real Talk Yaad';
 
@@ -246,11 +248,21 @@ function useShadow(): ViewStyle {
 }
 
 /** Soft circles that give hero cards depth. Purely decorative. */
-export function Decor({ color }: { color: string }) {
+export function Decor({ color, pattern = 'rings' }: { color: string; pattern?: 'rings' | 'stripes' | 'dots' }) {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
-      <View style={[styles.decorBig, { borderColor: color }]} />
-      <View style={[styles.decorSmall, { backgroundColor: color }]} />
+      {pattern === 'stripes' ? (
+        [0, 1, 2, 3].map((i) => <View key={i} style={[styles.decorStripe, { backgroundColor: color, right: -40 + i * 34 }]} />)
+      ) : pattern === 'dots' ? (
+        Array.from({ length: 12 }, (_, i) => (
+          <View key={i} style={[styles.decorDot, { backgroundColor: color, right: 14 + (i % 4) * 22, top: 14 + Math.floor(i / 4) * 22 }]} />
+        ))
+      ) : (
+        <>
+          <View style={[styles.decorBig, { borderColor: color }]} />
+          <View style={[styles.decorSmall, { backgroundColor: color }]} />
+        </>
+      )}
     </View>
   );
 }
@@ -266,6 +278,7 @@ export function Card({
 }) {
   const theme = useTheme();
   const shadow = useShadow();
+  const { card: skin } = useMyLook();
   const tones: Record<'plain' | 'soft' | 'hero' | 'outlined' | 'reward', ViewStyle> = {
     plain: { backgroundColor: theme.background, borderColor: theme.backgroundSelected, ...shadow },
     soft: { backgroundColor: theme.accentSoft, borderColor: 'transparent' },
@@ -274,6 +287,15 @@ export function Card({
     reward: { backgroundColor: theme.rewardSoft, borderColor: 'transparent' },
   };
   const toneStyle = tones[tone];
+  if (tone === 'hero' && skin) {
+    // A card skin from the Store: its own colours, and text in its colour.
+    return (
+      <View style={[styles.card, toneStyle, { backgroundColor: skin.background, borderColor: skin.background }, style]}>
+        <Decor color={skin.text} pattern={skin.pattern} />
+        <ThemeOverride value={{ onAccent: skin.text }}>{children}</ThemeOverride>
+      </View>
+    );
+  }
   return (
     <View style={[styles.card, toneStyle, style]}>
       {tone === 'hero' ? <Decor color={theme.onAccent} /> : null}
@@ -354,8 +376,44 @@ export function Waveform({ color, active = true }: { color?: string; active?: bo
   );
 }
 
-export function Avatar({ letter, size = 44, ring }: { letter: string; size?: number; ring?: string }) {
+/** A Store frame: up to three rings of colour around an avatar. */
+function Framed({ colors, size, children }: { colors: string[]; size: number; children: ReactNode }) {
+  const band = Math.max(2, Math.round(size * 0.06));
+  return colors.reduceRight<ReactNode>(
+    (inner, color, i) => (
+      <View
+        style={{
+          padding: band,
+          borderRadius: (size + band * 2 * (colors.length - i)) / 2,
+          backgroundColor: color,
+        }}>
+        {inner}
+      </View>
+    ),
+    children,
+  ) as ReactNode;
+}
+
+export function Avatar({
+  letter,
+  size = 44,
+  ring,
+  frame,
+}: {
+  letter: string;
+  size?: number;
+  ring?: string;
+  /** Colours of a Store frame, outside in. */
+  frame?: string[] | null;
+}) {
   const theme = useTheme();
+  if (frame?.length) {
+    return (
+      <Framed colors={frame} size={size}>
+        <Avatar letter={letter} size={size} />
+      </Framed>
+    );
+  }
   return (
     <View
       accessibilityElementsHidden
@@ -371,6 +429,18 @@ export function Avatar({ letter, size = 44, ring }: { letter: string; size?: num
         borderColor: ring,
       }}>
       <T style={{ color: theme.onAccent, fontFamily: FONT.extrabold, fontSize: size * 0.4, lineHeight: size * 0.5 }}>{letter}</T>
+    </View>
+  );
+}
+
+/** A Store badge shown next to a name. */
+export function NameBadge({ badge, small }: { badge: { icon: string; color: string; label: string } | null | undefined; small?: boolean }) {
+  if (!badge) return null;
+  const icon = (badge.icon in ICONS ? badge.icon : 'sparkles') as IconName;
+  return (
+    <View style={[styles.nameBadge, { backgroundColor: badge.color }, small && styles.nameBadgeSmall]} accessibilityLabel={`Badge: ${badge.label}`}>
+      <Icon name={icon} size={small ? 10 : 12} color="#FFFFFF" />
+      <Text style={[styles.nameBadgeText, small && { fontSize: 10 }]}>{badge.label}</Text>
     </View>
   );
 }
@@ -723,6 +793,11 @@ const styles = StyleSheet.create({
   },
   decorBig: { position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 28, right: -80, top: -90, opacity: 0.1 },
   decorSmall: { position: 'absolute', width: 90, height: 90, borderRadius: 45, right: 40, bottom: -50, opacity: 0.08 },
+  decorStripe: { position: 'absolute', top: -40, width: 14, height: 320, opacity: 0.12, transform: [{ rotate: '24deg' }] },
+  decorDot: { position: 'absolute', width: 8, height: 8, borderRadius: 4, opacity: 0.18 },
+  nameBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999 },
+  nameBadgeSmall: { paddingVertical: 2, paddingHorizontal: 6, gap: 3 },
+  nameBadgeText: { color: '#FFFFFF', fontFamily: FONT.bold, fontSize: 11 },
   progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
   waveform: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 72 },

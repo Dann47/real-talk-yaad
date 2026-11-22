@@ -156,6 +156,20 @@ async function requireUser(req: Request) {
   return data.user;
 }
 
+async function settingNumber(key: string, fallback: number) {
+  const { data } = await admin.from('app_settings').select('value').eq('key', key).maybeSingle();
+  const value = Number(data?.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+/** Pay after the daily cap and monthly budget (database function capped_pay). */
+async function cappedPay(userId: string, amount: number) {
+  if (amount <= 0) return 0;
+  const { data, error } = await admin.rpc('capped_pay', { uid: userId, amount });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 async function checkDailyLimit(userId: string) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count } = await admin
@@ -218,6 +232,18 @@ async function tidyOpenChats(userId: string) {
 
 async function start(userId: string, body: { topicId?: string; mode?: Mode }) {
   await checkDailyLimit(userId);
+  const maxChats = await settingNumber('max_chats_per_day', 15);
+  if (maxChats > 0) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', since);
+    if ((count ?? 0) >= maxChats) {
+      throw new HttpError(429, `You've started ${maxChats} chats today. Pick up one you already started, or come back tomorrow!`);
+    }
+  }
   await tidyOpenChats(userId);
   const mode: Mode = body.mode === 'voice' ? 'voice' : 'text';
   const topic = await loadTopic(body.topicId);
@@ -337,7 +363,19 @@ async function correct(userId: string, body: { messageId?: number; text?: string
 
   const joined = message.conversations as { mode: Mode } | { mode: Mode }[] | null;
   const mode = (Array.isArray(joined) ? joined[0]?.mode : joined?.mode) ?? 'text';
-  const amount = await correctionAmount(message.conversation_id, mode);
+  // The AI's opening greeting can be fixed (it still teaches the AI) but isn't paid:
+  // otherwise starting chat after chat just to fix greetings would be free money.
+  let isGreeting = false;
+  if (kind === 'ai_reply') {
+    const { count: before } = await admin
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', message.conversation_id)
+      .eq('role', 'user')
+      .lt('id', message.id);
+    isGreeting = (before ?? 0) === 0;
+  }
+  const amount = isGreeting ? 0 : await cappedPay(userId, await correctionAmount(message.conversation_id, mode));
 
   const { data: correction, error } = await admin
     .from('corrections')
@@ -606,9 +644,17 @@ async function audioLink(path: string | null) {
   return data?.signedUrl ?? null;
 }
 
-async function verifyRate() {
-  const { data } = await admin.from('task_rates').select('amount_jmd, active').eq('id', 'verify').maybeSingle();
-  return data?.active ? Number(data.amount_jmd) : 0;
+/** Verify pay depends on what's being checked (a short clip is quicker than a post). */
+async function verifyRates(): Promise<Record<VerifyKind, number>> {
+  const { data } = await admin
+    .from('task_rates')
+    .select('id, amount_jmd, active')
+    .in('id', ['verify', 'verify_recording', 'verify_correction', 'verify_description']);
+  const rate = (id: string) => {
+    const row = (data ?? []).find((r) => r.id === id) ?? (data ?? []).find((r) => r.id === 'verify');
+    return row?.active ? Number(row.amount_jmd) : 0;
+  };
+  return { recording: rate('verify_recording'), correction: rate('verify_correction'), description: rate('verify_description') };
 }
 
 async function votesToday(userId: string) {
@@ -624,7 +670,7 @@ async function votesToday(userId: string) {
 async function verifyQueue(userId: string) {
   const used = await votesToday(userId);
   const room = Math.min(VERIFY_PER_SET, VERIFY_PER_DAY - used);
-  if (room <= 0) return { items: [], rate: await verifyRate(), reason: 'limit' };
+  if (room <= 0) return { items: [], rates: await verifyRates(), reason: 'limit' };
 
   const { data: voted } = await admin.from('verifications').select('item_kind, item_id').eq('user_id', userId);
   const done = new Set((voted ?? []).map((v) => `${v.item_kind}:${v.item_id}`));
@@ -746,7 +792,7 @@ async function verifyQueue(userId: string) {
   const playable = items.filter(
     (item) => (item.kind !== 'recording' || item.audio_url) && (item.kind !== 'description' || item.media_url),
   );
-  return { items: playable, rate: await verifyRate(), reason: playable.length ? null : 'empty' };
+  return { items: playable, rates: await verifyRates(), reason: playable.length ? null : 'empty' };
 }
 
 async function verifyVote(userId: string, body: { kind?: string; id?: number; verdict?: string }) {
@@ -766,7 +812,7 @@ async function verifyVote(userId: string, body: { kind?: string; id?: number; ve
   if (item.user_id === userId && !VERIFY_OWN_WORK) throw new HttpError(403, "You can't check your own work.");
   if (item.status !== 'pending') throw new HttpError(409, 'Other speakers already settled this one. On to the next!');
 
-  const amount = await verifyRate();
+  const amount = await cappedPay(userId, (await verifyRates())[kind]);
   const { error } = await admin
     .from('verifications')
     .insert({ user_id: userId, item_kind: kind, item_id: id, verdict: body.verdict, amount_jmd: amount });

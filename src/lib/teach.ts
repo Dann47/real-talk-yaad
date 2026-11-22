@@ -14,6 +14,7 @@ export type FeedPost = {
   duration_ms: number | null;
   created_at: string;
   author: string;
+  author_id: string;
   is_mine: boolean;
   like_count: number;
   liked: boolean;

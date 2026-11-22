@@ -15,6 +15,7 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useTheme } from '@/hooks/use-theme';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { CosmeticsProvider } from '@/lib/cosmetics';
 import { ThemeSettingsProvider, useThemeSettings } from '@/theme/theme-provider';
 
 SplashScreen.preventAutoHideAsync();
@@ -123,8 +124,10 @@ export default function RootLayout() {
     <ThemeSettingsProvider>
       <NavigationTheme>
         <AuthProvider>
-          <AnimatedSplashOverlay />
-          <RootNavigator />
+          <CosmeticsProvider>
+            <AnimatedSplashOverlay />
+            <RootNavigator />
+          </CosmeticsProvider>
         </AuthProvider>
       </NavigationTheme>
     </ThemeSettingsProvider>

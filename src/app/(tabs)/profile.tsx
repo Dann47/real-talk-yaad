@@ -8,6 +8,7 @@ import {
   Card,
   Chip,
   Icon,
+  NameBadge,
   IconTile,
   Notice,
   ProgressBar,
@@ -18,6 +19,7 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { displayName, useAuth } from '@/lib/auth';
 import { levelFor } from '@/lib/earnings';
+import { useMyLook } from '@/lib/cosmetics';
 import { money } from '@/lib/format';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import { badgesFor, lastSevenDays, shortMoney, streakDays, useMe, type Activity } from '@/lib/profile';
@@ -80,6 +82,7 @@ export default function ProfileScreen() {
   const { profile, user: account, signOut } = useAuth();
   const { summary, leaders, activity, error, refreshing, refresh } = useMe();
   const [hidden] = useHideAmounts();
+  const look = useMyLook();
   const show = (amount: number) => (hidden ? HIDDEN : money(amount, 0));
   const week = lastSevenDays(activity ?? []);
   const weekTotal = week.reduce((sum, d) => sum + d.amount, 0);
@@ -103,11 +106,16 @@ export default function ProfileScreen() {
       <Appear>
         <Card tone="hero" style={styles.identity}>
           <View style={styles.identityTop}>
-            <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={72} ring={theme.onAccent} />
+            <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={72} ring={look.frame ? undefined : theme.onAccent} frame={look.frame?.colors} />
             <View style={styles.flex}>
               <T variant="title" style={{ color: theme.onAccent }}>
                 {name}
               </T>
+              {look.badge ? (
+                <View style={styles.badgeRow}>
+                  <NameBadge badge={look.badge} />
+                </View>
+              ) : null}
               {profile?.handle ? (
                 <T variant="small" style={{ color: theme.onAccent }}>
                   @{profile.handle}
@@ -394,6 +402,7 @@ export default function ProfileScreen() {
             { icon: 'person' as const, title: 'Account and password', subtitle: account?.email ?? 'Email and password', href: '/account' },
             { icon: 'settings' as const, title: 'Appearance', subtitle: 'Light, dark and accent colour', href: '/settings' },
             { icon: 'shield' as const, title: 'Consent and data', subtitle: 'How your voice and text are used', href: '/consent' },
+            { icon: 'bag' as const, title: 'Store', subtitle: 'Card skins, frames and badges', href: '/store' },
             { icon: 'wallet' as const, title: 'Payout method', subtitle: 'Your bank account or Lynk', href: '/payout-method' },
           ].map((row, i) => (
             <Pressable
@@ -444,6 +453,7 @@ const styles = StyleSheet.create({
   boardEmpty: { padding: 12 },
   boardEmptyBlock: { alignItems: 'center', gap: 6, padding: 16 },
   medal: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  badgeRow: { marginTop: 4 },
   heroStreak: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, marginTop: 8 },
   weekCard: { gap: 14 },
   weekTop: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
