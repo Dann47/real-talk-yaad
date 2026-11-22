@@ -26,10 +26,22 @@ import { tasks } from '@/lib/tasks';
 const DASH = '—';
 
 /** Work types shown under "Your work" (talk covers typed and voice chats separately). */
-const WORK = ['talk', 'voice', 'record', 'verify'] as const;
+const WORK = ['talk', 'voice', 'record', 'verify', 'teach'] as const;
 
-const TASK_ICON: Record<string, 'chat' | 'mic' | 'waveform' | 'check'> = { talk: 'chat', voice: 'mic', record: 'waveform', verify: 'check' };
-const TASK_NAME: Record<string, string> = { talk: 'Fixed the AI', voice: 'Fixed a voice chat', record: 'Recorded a line', verify: 'Checked work' };
+const TASK_ICON: Record<string, 'chat' | 'mic' | 'waveform' | 'check' | 'video'> = {
+  talk: 'chat',
+  voice: 'mic',
+  record: 'waveform',
+  verify: 'check',
+  teach: 'video',
+};
+const TASK_NAME: Record<string, string> = {
+  talk: 'Fixed the AI',
+  voice: 'Fixed a voice chat',
+  record: 'Recorded a line',
+  verify: 'Checked work',
+  teach: 'Described a post',
+};
 
 function ago(iso: string) {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);

@@ -42,7 +42,16 @@
         {
           "microphonePermission": "Allow Real Talk Yaad to use your microphone for voice chats and recordings."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Real Talk Yaad uses your photos so you can post them to the Feed for others to describe in Patois.",
+          "cameraPermission": "Real Talk Yaad uses the camera so you can take photos and short videos for the Feed.",
+          "microphonePermission": "Real Talk Yaad uses the microphone to record sound with your Feed videos."
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

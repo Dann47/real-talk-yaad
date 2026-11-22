@@ -58,12 +58,12 @@ export const tasks: Task[] = [
   },
   {
     id: 'teach',
-    tag: 'Coming soon',
+    tag: 'New',
     tone: 'reward',
-    title: 'Teach: describe a clip',
-    detail: '1 video · 1 min',
+    title: 'Teach: describe a post',
+    detail: 'Photos and short videos · 1 min each',
     icon: 'video',
-    href: '/feed' as Href,
-    description: "Say what's happening in a video, in Patois.",
+    href: '/feed?filter=teach' as Href,
+    description: "Say what's happening in a photo or video from the Feed, in Patois.",
   },
 ];

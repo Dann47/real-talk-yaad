@@ -29,11 +29,3 @@ export const storeItems: {
   { id: 's6', name: 'Top Teacher badge', category: 'Badges', price: 400, tone: 'reward' },
 ];
 
-export const feedPost = {
-  author: '@kerryann_ja',
-  caption: 'Coronation Market inna di mawnin.',
-  scene: 'Video: market stall with fruit and veg',
-  likes: '1.2k',
-  comments: '86',
-  teachPay: 'J$25',
-};

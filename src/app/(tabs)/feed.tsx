@@ -1,141 +1,289 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { Appear, Avatar, Button, Card, Chip, Icon, Screen, T, inputText, type IconName } from '@/components/kit';
-import { feedPost } from '@/data/sample';
+import { Appear, Avatar, Button, Card, Icon, IconTile, Notice, Screen, T } from '@/components/kit';
+import { PostActions } from '@/components/post-actions';
+import { PostMedia } from '@/components/post-media';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth';
+import { money } from '@/lib/format';
+import { useRates } from '@/lib/rates';
+import { FEED_PAGE, loadFeed, setLiked, timeAgo, type FeedFilter, type FeedPost } from '@/lib/teach';
 
-const WHITE = '#FFFFFF';
+const FILTERS: { id: FeedFilter; label: string }[] = [
+  { id: 'all', label: 'For you' },
+  { id: 'teach', label: 'To teach' },
+  { id: 'mine', label: 'My posts' },
+];
 
-function SideAction({ icon, label, count }: { icon: IconName; label: string; count: string }) {
+const STATUS: Record<NonNullable<FeedPost['my_status']>, string> = {
+  pending: 'You taught · in review',
+  approved: 'You taught · paid',
+  rejected: 'You taught · not approved',
+};
+
+function PostCard({
+  post,
+  pay,
+  onLike,
+  onMenu,
+}: {
+  post: FeedPost;
+  pay: number | null;
+  onLike: () => void;
+  onMenu: () => void;
+}) {
+  const theme = useTheme();
+  const open = (describe = false) => router.push(`/post/${post.id}${describe ? '?describe=1' : ''}` as Href);
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.sideAction, { transform: [{ scale: pressed ? 0.9 : 1 }] }]}>
-      <View style={styles.sideIcon}>
-        <Icon name={icon} size={24} color={WHITE} />
+    <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
+      <View style={styles.author}>
+        <Avatar letter={post.author[0]?.toUpperCase() ?? 'R'} size={34} />
+        <View style={styles.flex}>
+          <T variant="bodyStrong">{post.is_mine ? 'You' : post.author}</T>
+          <T variant="caption" color="textSecondary">
+            {timeAgo(post.created_at)}
+          </T>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={post.is_mine ? 'Post options' : 'Report post'} onPress={onMenu} hitSlop={10} style={styles.menu}>
+          <T variant="heading" color="textSecondary">
+            ⋯
+          </T>
+        </Pressable>
       </View>
-      <T variant="caption" style={{ color: WHITE }}>
-        {count}
-      </T>
-    </Pressable>
+
+      <Pressable accessibilityRole="button" accessibilityLabel="Open post" onPress={() => open()}>
+        <PostMedia kind={post.kind} path={post.media_path} width={post.width} height={post.height} rounded={18} />
+      </Pressable>
+
+      {post.caption ? (
+        <T variant="body" numberOfLines={3}>
+          {post.caption}
+        </T>
+      ) : null}
+
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={post.liked ? 'Unlike' : 'Like'}
+          accessibilityState={{ selected: post.liked }}
+          onPress={onLike}
+          hitSlop={6}
+          style={({ pressed }) => [styles.action, { transform: [{ scale: pressed ? 0.88 : 1 }] }]}>
+          <Icon name="heart" size={20} color={post.liked ? theme.danger : theme.textSecondary} />
+          <T variant="smallStrong" color={post.liked ? 'text' : 'textSecondary'}>
+            {post.like_count}
+          </T>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${post.description_count} descriptions`} onPress={() => open()} hitSlop={6} style={styles.action}>
+          <Icon name="chat" size={20} color={theme.textSecondary} />
+          <T variant="smallStrong" color="textSecondary">
+            {post.description_count}
+          </T>
+        </Pressable>
+        <View style={styles.flex} />
+        {post.is_mine ? (
+          <T variant="caption" color="textSecondary">
+            Your post
+          </T>
+        ) : post.my_status ? (
+          <View style={[styles.status, { backgroundColor: post.my_status === 'approved' ? theme.accentSoft : theme.rewardSoft }]}>
+            <Icon name="check" size={12} color={post.my_status === 'approved' ? theme.accentText : theme.rewardText} />
+            <T variant="caption" color={post.my_status === 'approved' ? 'accentText' : 'rewardText'}>
+              {STATUS[post.my_status]}
+            </T>
+          </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Describe this post in Patois${pay ? ` and earn ${money(pay, 0)}` : ''}`}
+            onPress={() => open(true)}
+            style={({ pressed }) => [styles.teach, { backgroundColor: theme.reward, transform: [{ scale: pressed ? 0.95 : 1 }] }]}>
+            <Icon name="edit" size={14} color={theme.onReward} />
+            <T variant="smallStrong" style={{ color: theme.onReward }}>
+              Describe{pay ? ` · +${money(pay, 0)}` : ''}
+            </T>
+          </Pressable>
+        )}
+      </View>
+    </View>
   );
 }
 
 export default function FeedScreen() {
   const theme = useTheme();
-  const [answer, setAnswer] = useState('');
-  const [sent, setSent] = useState(false);
+  const rates = useRates();
+  const { user } = useAuth();
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const [filter, setFilter] = useState<FeedFilter>(params.filter === 'teach' || params.filter === 'mine' ? params.filter : 'all');
+  const [posts, setPosts] = useState<FeedPost[] | null>(null);
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [menuPost, setMenuPost] = useState<FeedPost | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const pay = rates.teach?.amount_jmd ?? null;
+
+  const load = useCallback(async (which: FeedFilter) => {
+    setRefreshing(true);
+    try {
+      const page = await loadFeed(which);
+      setPosts(page);
+      setMore(page.length === FEED_PAGE);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+      setPosts((p) => p ?? []);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Follow ?filter= from links (Work > Teach opens "To teach").
+  useFocusEffect(
+    useCallback(() => {
+      const wanted = params.filter === 'teach' || params.filter === 'mine' ? params.filter : null;
+      if (wanted && wanted !== filter) {
+        setFilter(wanted);
+        setPosts(null);
+        load(wanted);
+      } else load(filter);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.filter]),
+  );
+
+  const choose = (which: FeedFilter) => {
+    if (which === filter) return;
+    setFilter(which);
+    setPosts(null);
+    load(which);
+    router.setParams({ filter: which === 'all' ? undefined : which } as never);
+  };
+
+  const loadMore = async () => {
+    if (!posts?.length) return;
+    setLoadingMore(true);
+    try {
+      const page = await loadFeed(filter, posts[posts.length - 1].id);
+      setPosts([...posts, ...page]);
+      setMore(page.length === FEED_PAGE);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const like = async (post: FeedPost) => {
+    if (!user) return;
+    const liked = !post.liked;
+    const update = (p: FeedPost) => (p.id === post.id ? { ...p, liked, like_count: p.like_count + (liked ? 1 : -1) } : p);
+    setPosts((list) => list?.map(update) ?? null);
+    try {
+      await setLiked(post.id, user.id, liked);
+    } catch {
+      // Put it back if it didn't save.
+      setPosts((list) => list?.map((p) => (p.id === post.id ? post : p)) ?? null);
+    }
+  };
 
   return (
-    <Screen tabs title="Feed">
-      <Appear style={styles.feedTabs}>
-        <T variant="bodyStrong" color="textSecondary">
-          Following
-        </T>
-        <View style={[styles.activeTab, { borderBottomColor: theme.accent }]}>
-          <T variant="bodyStrong">For you</T>
+    <Screen tabs title="Feed" onRefresh={() => load(filter)} refreshing={refreshing && !!posts}>
+      <Appear style={styles.top}>
+        <View style={styles.flex}>
+          <T variant="title">Feed</T>
+          <T variant="small" color="textSecondary">
+            Describe what's happening in Patois{pay ? ` · ${money(pay, 0)} each` : ''}
+          </T>
         </View>
+        <Button label="Post" icon="plus" compact href={'/new-post' as Href} />
       </Appear>
 
-      <Appear index={1}>
-        <View style={[styles.video, { backgroundColor: theme.media }]}>
-          <View style={styles.play} accessibilityElementsHidden>
-            <Icon name="play" size={32} color={WHITE} />
-          </View>
-          <View style={styles.sideActions}>
-            <SideAction icon="heart" label="Like" count={feedPost.likes} />
-            <SideAction icon="chat" label="Comments" count={feedPost.comments} />
-            <SideAction icon="share" label="Share" count="Share" />
-          </View>
-          <View style={styles.caption}>
-            <View style={styles.author}>
-              <Avatar letter="K" size={32} ring={WHITE} />
-              <T variant="bodyStrong" style={{ color: WHITE }}>
-                {feedPost.author}
+      <Appear index={1} style={styles.filters}>
+        {FILTERS.map((f) => {
+          const on = filter === f.id;
+          return (
+            <Pressable
+              key={f.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              onPress={() => choose(f.id)}
+              style={[styles.filter, { backgroundColor: on ? theme.accent : theme.backgroundElement, borderColor: on ? theme.accent : theme.backgroundSelected }]}>
+              <T variant="smallStrong" style={{ color: on ? theme.onAccent : theme.text }}>
+                {f.label}
               </T>
-            </View>
-            <T variant="small" style={{ color: WHITE }}>
-              {feedPost.caption}
-            </T>
-            <T variant="caption" style={{ color: WHITE, opacity: 0.8 }}>
-              {feedPost.scene}
-            </T>
-            <Chip icon="sparkles" label="AI training on · creator earns a share" />
-          </View>
-        </View>
+            </Pressable>
+          );
+        })}
       </Appear>
 
-      <Appear index={2}>
-        <Card style={styles.teach}>
-          <View style={styles.teachHeader}>
-            <View>
-              <T variant="overline" color="accentText">
-                Paid task
-              </T>
-              <T variant="heading">Teach the AI</T>
-            </View>
-            <Chip label={feedPost.teachPay} />
-          </View>
-          {sent ? (
-            <View style={styles.sent} accessibilityLiveRegion="polite">
-              <Icon name="check" color={theme.accentText} />
-              <T variant="bodyStrong" color="accentText">
-                Sent for review. Thanks!
-              </T>
-            </View>
-          ) : (
-            <>
-              <T variant="small" color="textSecondary">
-                What's happening here? Say it in Patois.
-              </T>
-              <TextInput
-                accessibilityLabel="What's happening here? Say it in Patois."
-                value={answer}
-                onChangeText={setAnswer}
-                placeholder="Di higgler a sell ackee an mango..."
-                placeholderTextColor={theme.textSecondary}
-                multiline
-                style={[
-                  styles.input,
-                  inputText,
-                  { color: theme.text, borderColor: theme.accent, backgroundColor: theme.backgroundElement },
-                ]}
-              />
-              <Button label="Send for review" icon="send" disabled={answer.trim().length < 5} onPress={() => setSent(true)} />
-            </>
-          )}
+      {notice ? <Notice tone="success" text={notice} /> : null}
+      {error ? (
+        <Pressable accessibilityRole="button" onPress={() => load(filter)}>
+          <Notice tone="error" text={`${error} Tap to try again.`} />
+        </Pressable>
+      ) : null}
+
+      {!posts ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={theme.accentText} />
+        </View>
+      ) : posts.length === 0 ? (
+        <Card style={styles.empty}>
+          <IconTile icon={filter === 'mine' ? 'plus' : filter === 'teach' ? 'check' : 'video'} tone="reward" size={48} />
+          <T variant="heading">
+            {filter === 'mine' ? 'No posts yet' : filter === 'teach' ? "You've described everything!" : 'The feed is quiet'}
+          </T>
+          <T variant="small" color="textSecondary" style={styles.center}>
+            {filter === 'mine'
+              ? 'Share a photo or short video of everyday Jamaica: market, food, a street, a game. Others earn by describing it.'
+              : filter === 'teach'
+                ? 'New posts show up here for you to describe. Check back soon, or post something yourself.'
+                : 'Be the first: post a photo or short video of everyday Jamaica.'}
+          </T>
+          <Button label="Make a post" icon="plus" variant={filter === 'teach' ? 'secondary' : 'primary'} href={'/new-post' as Href} />
         </Card>
-      </Appear>
+      ) : (
+        posts.map((post, i) => (
+          <Appear key={post.id} index={Math.min(i, 4) + 2}>
+            <PostCard post={post} pay={pay} onLike={() => like(post)} onMenu={() => setMenuPost(post)} />
+          </Appear>
+        ))
+      )}
+
+      {posts && more ? (
+        <Button label={loadingMore ? 'Loading...' : 'Show more posts'} variant="secondary" disabled={loadingMore} onPress={loadMore} />
+      ) : null}
+
+      <PostActions
+        post={menuPost}
+        userId={user?.id}
+        onClose={() => setMenuPost(null)}
+        onDone={(post, what) => {
+          setPosts((list) => list?.filter((p) => p.id !== post.id) ?? null);
+          setNotice(what === 'deleted' ? 'Your post was deleted.' : "Thanks. We'll take a look, and you won't see it here again.");
+        }}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  feedTabs: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
-  activeTab: { borderBottomWidth: 3, paddingBottom: 4 },
-  video: { height: 460, borderRadius: 28, overflow: 'hidden', justifyContent: 'flex-end' },
-  play: {
-    position: 'absolute',
-    top: '38%',
-    alignSelf: 'center',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 2,
-    borderColor: WHITE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideActions: { position: 'absolute', right: 12, bottom: 24, gap: 14, alignItems: 'center' },
-  sideAction: { minWidth: 48, alignItems: 'center', gap: 4 },
-  sideIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  caption: { padding: 18, paddingRight: 84, gap: 6, backgroundColor: 'rgba(0,0,0,0.45)' },
-  author: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  teach: { gap: 12 },
-  teachHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  input: { minHeight: 80, borderWidth: 1.5, borderRadius: 16, padding: 14, textAlignVertical: 'top' },
-  sent: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  flex: { flex: 1 },
+  center: { textAlign: 'center' },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filter: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5 },
+  loading: { paddingVertical: 40, alignItems: 'center' },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 28 },
+  card: { gap: 12, padding: 12, borderRadius: 24, borderWidth: 1 },
+  author: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  menu: { paddingHorizontal: 8 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999 },
+  teach: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999 },
 });

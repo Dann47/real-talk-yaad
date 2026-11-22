@@ -84,6 +84,8 @@ function RootNavigator() {
         <Stack.Screen name="edit-profile" />
         <Stack.Screen name="payout-method" />
         <Stack.Screen name="cash-out" />
+        <Stack.Screen name="new-post" />
+        <Stack.Screen name="post/[id]" />
       </Stack.Protected>
 
       <Stack.Protected guard={signedIn}>

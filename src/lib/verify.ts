@@ -25,6 +25,16 @@ export type VerifyItem =
       duration_ms: number;
       audio_url: string | null;
       created_at: string;
+    }
+  | {
+      kind: 'description';
+      id: number;
+      /** What they said is happening in the post. */
+      text: string;
+      caption: string;
+      media_kind: 'photo' | 'video';
+      media_url: string | null;
+      created_at: string;
     };
 
 export type VerifyQueue = {

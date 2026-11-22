@@ -57,12 +57,19 @@ const TASK: Record<string, { icon: IconName; label: string; short: string }> = {
   voice: { icon: 'mic', label: 'Voice chat fix', short: 'Voice' },
   record: { icon: 'waveform', label: 'Recorded a line', short: 'Record' },
   verify: { icon: 'check', label: 'Checked work', short: 'Verify' },
+  teach: { icon: 'video', label: 'Described a post', short: 'Teach' },
 };
 
 /** This month's earnings by kind of work, as one bar. */
 function MonthBreakdown({ earnings, hidden }: { earnings: EarningRow[]; hidden: boolean }) {
   const theme = useTheme();
-  const colours: Record<string, string> = { talk: theme.accent, voice: theme.accentText, record: theme.reward, verify: theme.rewardText };
+  const colours: Record<string, string> = {
+    talk: theme.accent,
+    voice: theme.accentText,
+    record: theme.reward,
+    verify: theme.rewardText,
+    teach: theme.danger,
+  };
   const monthKey = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Jamaica', year: 'numeric', month: '2-digit' }).format(new Date(iso));
   const thisMonth = monthKey(new Date().toISOString());
   const byTask = new Map<string, number>();

@@ -92,7 +92,7 @@ export function streakDays(activity: Activity[]) {
   return streak;
 }
 
-export type Badge = { id: string; title: string; detail: string; icon: 'mic' | 'chat' | 'check' | 'flame' | 'sparkles' | 'waveform' | 'trend'; earned: boolean; progress: number };
+export type Badge = { id: string; title: string; detail: string; icon: 'mic' | 'chat' | 'check' | 'flame' | 'sparkles' | 'waveform' | 'trend' | 'video'; earned: boolean; progress: number };
 
 /** Badges worked out from your stats (nothing stored). */
 export function badgesFor(summary: MeSummary, streak: number): Badge[] {
@@ -102,6 +102,7 @@ export function badgesFor(summary: MeSummary, streak: number): Badge[] {
     { id: 'first', title: 'First steps', detail: 'Do your first task', icon: 'sparkles', have: summary.tasksDone, need: 1 },
     { id: 'fixer', title: 'Fixer', detail: 'Fix the AI 10 times', icon: 'chat', have: fixes, need: 10 },
     { id: 'voice', title: 'Golden voice', detail: 'Record 25 lines', icon: 'waveform', have: t('record').count, need: 25 },
+    { id: 'teacher', title: 'Storyteller', detail: 'Describe 10 posts', icon: 'video', have: t('teach').count, need: 10 },
     { id: 'judge', title: 'Sharp ears', detail: 'Match 20 votes', icon: 'check', have: summary.votesMatched, need: 20 },
     { id: 'streak', title: 'On a roll', detail: '7-day streak', icon: 'flame', have: streak, need: 7 },
     { id: 'earner', title: 'Big earner', detail: 'Earn J$1,000', icon: 'trend', have: summary.earnedTotal, need: 1000 },

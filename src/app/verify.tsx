@@ -17,6 +17,7 @@ import Animated, {
 
 import { Confetti, FloatUp } from "@/components/celebrate";
 import { DiffText } from "@/components/fix-editor";
+import { PostMedia } from "@/components/post-media";
 import {
   Appear,
   Button,
@@ -60,6 +61,15 @@ function describe(item: VerifyItem): {
   yes: string;
   no: string;
 } {
+  if (item.kind === "description") {
+    return {
+      label: "Post description",
+      icon: "video",
+      question: "Does this describe the post, in real Patois?",
+      yes: "Yes, it fits",
+      no: "No",
+    };
+  }
   if (item.kind === "recording") {
     return {
       label: "Recorded line",
@@ -88,6 +98,7 @@ function describe(item: VerifyItem): {
 }
 
 function needsAudio(item: VerifyItem) {
+  if (item.kind === "description") return false;
   return (
     item.kind === "recording" ||
     (item.type === "transcript" && !!item.audio_url)
@@ -307,7 +318,8 @@ export default function VerifyScreen() {
 
   const item = items?.[index];
   const key = item ? verifyKey(item) : "";
-  const audioUrl = item?.audio_url ?? null;
+  const audioUrl =
+    item && item.kind !== "description" ? item.audio_url ?? null : null;
 
   /* ---------- Playback ---------- */
   const isLoaded = !!audioUrl && loadedUri.current === audioUrl;
@@ -513,7 +525,7 @@ export default function VerifyScreen() {
             </T>
             {outcomes.map((o, i) => {
               const text =
-                o.item.kind === "recording" ? o.item.text : o.item.corrected;
+                o.item.kind === "correction" ? o.item.corrected : o.item.text;
               const status = o.result.status;
               return (
                 <Appear key={o.key} index={i + 2}>
@@ -690,7 +702,25 @@ export default function VerifyScreen() {
               ) : null}
             </View>
 
-            {item.kind === "recording" ? (
+            {item.kind === "description" ? (
+              <>
+                <PostMedia
+                  kind={item.media_kind}
+                  url={item.media_url}
+                  rounded={16}
+                />
+                {item.caption ? (
+                  <T variant="caption" color="textSecondary">
+                    Caption: {item.caption}
+                  </T>
+                ) : null}
+                <Said
+                  label="They described it as"
+                  text={item.text}
+                  tone="main"
+                />
+              </>
+            ) : item.kind === "recording" ? (
               <>
                 <Said label="They were reading" text={item.text} tone="main" />
                 {item.fixed && item.original ? (

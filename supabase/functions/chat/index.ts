@@ -562,7 +562,7 @@ async function recordLines(userId: string, body: { topicId?: string; fresh?: boo
 
 /* ---------- Verify ---------- */
 
-type VerifyKind = 'correction' | 'recording';
+type VerifyKind = 'correction' | 'recording' | 'description';
 
 type VerifyItem =
   | {
@@ -584,7 +584,21 @@ type VerifyItem =
       duration_ms: number;
       audio_url: string | null;
       created_at: string;
+    }
+  | {
+      kind: 'description';
+      id: number;
+      text: string;
+      caption: string;
+      media_kind: 'photo' | 'video';
+      media_url: string | null;
+      created_at: string;
     };
+
+async function mediaLink(path: string) {
+  const { data } = await admin.storage.from('media').createSignedUrl(path, AUDIO_LINK_SECONDS);
+  return data?.signedUrl ?? null;
+}
 
 async function audioLink(path: string | null) {
   if (!path) return null;
@@ -627,24 +641,57 @@ async function verifyQueue(userId: string) {
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(60);
+  let descriptions = admin
+    .from('descriptions')
+    .select('id, user_id, text, created_at, posts!inner(caption, kind, media_path, hidden)')
+    .eq('status', 'pending')
+    .eq('posts.hidden', false)
+    .order('created_at', { ascending: true })
+    .limit(60);
   if (!VERIFY_OWN_WORK) {
     corrections = corrections.neq('user_id', userId);
     recordings = recordings.neq('user_id', userId);
+    descriptions = descriptions.neq('user_id', userId);
   }
-  const [{ data: cRows }, { data: rRows }] = await Promise.all([corrections, recordings]);
+  const [{ data: cRows }, { data: rRows }, { data: dRows }] = await Promise.all([corrections, recordings, descriptions]);
 
   const cFree = (cRows ?? []).filter((c) => !done.has(`correction:${c.id}`));
   const rFree = (rRows ?? []).filter((r) => !done.has(`recording:${r.id}`));
+  const dFree = (dRows ?? []).filter((d) => !done.has(`description:${d.id}`));
 
-  // Oldest first so work gets paid sooner, alternating kinds for variety.
-  const picked: ({ kind: 'correction'; row: (typeof cFree)[number] } | { kind: 'recording'; row: (typeof rFree)[number] })[] = [];
-  while (picked.length < room && (cFree.length || rFree.length)) {
-    if (rFree.length && (picked.length % 2 === 0 || !cFree.length)) picked.push({ kind: 'recording', row: rFree.shift()! });
-    else if (cFree.length) picked.push({ kind: 'correction', row: cFree.shift()! });
+  // Oldest first so work gets paid sooner, taking turns between kinds for variety.
+  type Picked =
+    | { kind: 'correction'; row: (typeof cFree)[number] }
+    | { kind: 'recording'; row: (typeof rFree)[number] }
+    | { kind: 'description'; row: (typeof dFree)[number] };
+  const picked: Picked[] = [];
+  const pools = [
+    () => (rFree.length ? ({ kind: 'recording', row: rFree.shift()! } as Picked) : null),
+    () => (cFree.length ? ({ kind: 'correction', row: cFree.shift()! } as Picked) : null),
+    () => (dFree.length ? ({ kind: 'description', row: dFree.shift()! } as Picked) : null),
+  ];
+  let turn = 0;
+  while (picked.length < room && (cFree.length || rFree.length || dFree.length)) {
+    const next = pools[turn % pools.length]();
+    if (next) picked.push(next);
+    turn += 1;
   }
 
   const items: VerifyItem[] = await Promise.all(
     picked.map(async (entry): Promise<VerifyItem> => {
+      if (entry.kind === 'description') {
+        const d = entry.row;
+        const post = (Array.isArray(d.posts) ? d.posts[0] : d.posts) as { caption: string; kind: 'photo' | 'video'; media_path: string };
+        return {
+          kind: 'description',
+          id: d.id,
+          text: d.text,
+          caption: post?.caption ?? '',
+          media_kind: post?.kind ?? 'photo',
+          media_url: post ? await mediaLink(post.media_path) : null,
+          created_at: d.created_at,
+        };
+      }
       if (entry.kind === 'recording') {
         const r = entry.row;
         return {
@@ -696,20 +743,24 @@ async function verifyQueue(userId: string) {
   );
 
   // Audio we can't open can't be checked fairly, so leave it out.
-  const playable = items.filter((item) => item.kind !== 'recording' || item.audio_url);
+  const playable = items.filter(
+    (item) => (item.kind !== 'recording' || item.audio_url) && (item.kind !== 'description' || item.media_url),
+  );
   return { items: playable, rate: await verifyRate(), reason: playable.length ? null : 'empty' };
 }
 
 async function verifyVote(userId: string, body: { kind?: string; id?: number; verdict?: string }) {
   const kind = body.kind as VerifyKind;
   const id = Number(body.id);
-  if (!['correction', 'recording'].includes(kind) || !Number.isInteger(id)) throw new HttpError(400, 'That item was not found.');
+  if (!['correction', 'recording', 'description'].includes(kind) || !Number.isInteger(id)) {
+    throw new HttpError(400, 'That item was not found.');
+  }
   if (body.verdict !== 'yes' && body.verdict !== 'no') throw new HttpError(400, 'Choose yes or no.');
   if ((await votesToday(userId)) >= VERIFY_PER_DAY) {
     throw new HttpError(429, `You've checked ${VERIFY_PER_DAY} items today. Come back tomorrow!`);
   }
 
-  const table = kind === 'correction' ? 'corrections' : 'recordings';
+  const table = kind === 'correction' ? 'corrections' : kind === 'recording' ? 'recordings' : 'descriptions';
   const { data: item } = await admin.from(table).select('id, user_id, status').eq('id', id).maybeSingle();
   if (!item) throw new HttpError(404, 'That item was not found.');
   if (item.user_id === userId && !VERIFY_OWN_WORK) throw new HttpError(403, "You can't check your own work.");

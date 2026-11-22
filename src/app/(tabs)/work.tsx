@@ -22,7 +22,7 @@ const HOW: { icon: IconName; title: string; detail: string }[] = [
 function todayLabel(task: Task, byTask: Record<string, number> | undefined) {
   const n = byTask?.[task.id] ?? 0;
   if (!n) return null;
-  const noun = task.id === 'record' ? 'line' : task.id === 'verify' ? 'check' : 'fix';
+  const noun = task.id === 'record' ? 'line' : task.id === 'verify' ? 'check' : task.id === 'teach' ? 'description' : 'fix';
   return `${n} ${noun}${n === 1 ? '' : noun === 'fix' ? 'es' : 's'} today`;
 }
 
