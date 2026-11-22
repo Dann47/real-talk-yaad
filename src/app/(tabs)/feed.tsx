@@ -1,10 +1,11 @@
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Appear, Avatar, Button, Card, Icon, IconTile, NameBadge, Notice, Screen, T } from '@/components/kit';
 import { PostActions } from '@/components/post-actions';
 import { PostMedia } from '@/components/post-media';
+import { PostSkeleton } from '@/components/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { usePeopleLooks, type Look } from '@/lib/cosmetics';
@@ -235,9 +236,10 @@ export default function FeedScreen() {
       ) : null}
 
       {!posts ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={theme.accentText} />
-        </View>
+        <>
+          <PostSkeleton />
+          <PostSkeleton />
+        </>
       ) : posts.length === 0 ? (
         <Card style={styles.empty}>
           <IconTile icon={filter === 'mine' ? 'plus' : filter === 'teach' ? 'check' : 'video'} tone="reward" size={48} />

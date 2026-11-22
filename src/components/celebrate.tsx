@@ -13,6 +13,7 @@ import Animated, {
 
 import { T } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
+import { cheer } from '@/lib/haptics';
 
 const PIECES = 18;
 
@@ -47,6 +48,9 @@ function Piece({ index, color }: { index: number; color: string }) {
 export function Confetti({ burst }: { burst: number }) {
   const theme = useTheme();
   const reduced = useReducedMotion();
+  useEffect(() => {
+    if (burst) cheer();
+  }, [burst]);
   if (!burst || reduced) return null;
   const colors = [theme.accent, theme.reward, theme.accentText, theme.danger];
   return (

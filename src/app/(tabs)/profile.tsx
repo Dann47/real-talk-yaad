@@ -1,4 +1,5 @@
 import { router, type Href } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
@@ -22,7 +23,7 @@ import { levelFor } from '@/lib/earnings';
 import { useMyLook } from '@/lib/cosmetics';
 import { money } from '@/lib/format';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
-import { badgesFor, lastSevenDays, shortMoney, streakDays, useMe, type Activity } from '@/lib/profile';
+import { badgesFor, lastSevenDays, nextTarget, shortMoney, streakDays, useMe, type Activity } from '@/lib/profile';
 import { tasks } from '@/lib/tasks';
 
 const DASH = '—';
@@ -97,7 +98,10 @@ export default function ProfileScreen() {
   const matchRate = summary?.votesSettled ? Math.round((summary.votesMatched / summary.votesSettled) * 100) : null;
   const approvalRate = summary?.reviewedCount ? Math.round((summary.approvedCount / summary.reviewedCount) * 100) : null;
   const medal = [theme.reward, theme.textSecondary, theme.rewardText];
-  const scope = leaders?.[0]?.scope ?? profile?.parish ?? 'Jamaica';
+  const scope = leaders?.[0]?.scope_label ?? profile?.parish ?? 'Jamaica';
+  const target = leaders ? nextTarget(leaders) : null;
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const ACTIVITY_SHOWN = 5;
   const editProfile = () => router.push('/edit-profile' as Href);
 
   return (
@@ -106,7 +110,18 @@ export default function ProfileScreen() {
       <Appear>
         <Card tone="hero" style={styles.identity}>
           <View style={styles.identityTop}>
-            <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={72} ring={look.frame ? undefined : theme.onAccent} frame={look.frame?.colors} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={look.frame ? 'Your avatar frame. Change it in the Store' : 'Add a frame from the Store'}
+              onPress={() => router.push('/store?filter=frame' as Href)}
+              hitSlop={6}>
+              <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={72} ring={look.frame ? undefined : theme.onAccent} frame={look.frame?.colors} />
+              {!look.frame ? (
+                <View style={[styles.addFrame, { backgroundColor: theme.reward, borderColor: theme.accent }]}>
+                  <Icon name="plus" size={12} color={theme.onReward} />
+                </View>
+              ) : null}
+            </Pressable>
             <View style={styles.flex}>
               <T variant="title" style={{ color: theme.onAccent }}>
                 {name}
@@ -115,7 +130,14 @@ export default function ProfileScreen() {
                 <View style={styles.badgeRow}>
                   <NameBadge badge={look.badge} />
                 </View>
-              ) : null}
+              ) : (
+                <Pressable accessibilityRole="button" onPress={() => router.push('/store?filter=badge' as Href)} hitSlop={6} style={[styles.getBadge, { borderColor: theme.onAccent }]}>
+                  <Icon name="sparkles" size={11} color={theme.onAccent} />
+                  <T variant="caption" style={{ color: theme.onAccent }}>
+                    Get a badge
+                  </T>
+                </Pressable>
+              )}
               {profile?.handle ? (
                 <T variant="small" style={{ color: theme.onAccent }}>
                   @{profile.handle}
@@ -313,7 +335,7 @@ export default function ProfileScreen() {
 
       {/* Weekly leaderboard */}
       <Appear index={5}>
-        <SectionHeader title={`This week in ${scope}`} />
+        <SectionHeader title={`This week in ${scope}`} action="See all" href={'/leaderboard' as Href} />
       </Appear>
       <Appear index={6}>
         <Card style={styles.board}>
@@ -337,9 +359,11 @@ export default function ProfileScreen() {
                     {row.rank}
                   </T>
                 </View>
-                <T variant={row.is_me ? 'bodyStrong' : 'body'} style={styles.flex}>
-                  {row.is_me ? `${row.name} (you)` : row.name}
-                </T>
+                <Avatar letter={row.name[0]?.toUpperCase() ?? 'R'} size={28} frame={row.frame?.colors} />
+                <View style={[styles.flex, styles.boardName]}>
+                  <T variant={row.is_me ? 'bodyStrong' : 'body'}>{row.is_me ? `${row.name} (you)` : row.name}</T>
+                  <NameBadge badge={row.badge} small />
+                </View>
                 <T variant="small" color="textSecondary">
                   {row.approved} approved
                 </T>
@@ -348,6 +372,15 @@ export default function ProfileScreen() {
           )}
         </Card>
       </Appear>
+      {target ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/leaderboard' as Href)} style={[styles.chase, { backgroundColor: theme.rewardSoft }]}>
+          <Icon name="trend" size={14} color={theme.rewardText} />
+          <T variant="caption" color="rewardText" style={styles.flex}>
+            {target.need} more approved {target.need === 1 ? 'task' : 'tasks'} to pass {target.name} for #{target.rank}
+          </T>
+          <Icon name="chevron" size={12} color={theme.rewardText} />
+        </Pressable>
+      ) : null}
       {profile && !profile.show_on_leaderboard ? (
         <T variant="caption" color="textSecondary">
           You're hidden from other people's leaderboard. Change it in Edit profile.
@@ -366,7 +399,7 @@ export default function ProfileScreen() {
           </Appear>
           <Appear index={7}>
             <Card style={styles.work}>
-              {activity.slice(0, 6).map((a, i) => (
+              {activity.slice(0, showAllActivity ? 30 : ACTIVITY_SHOWN).map((a, i) => (
                 <View
                   key={`${a.task}-${a.ref_id}`}
                   style={[styles.activityRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.backgroundSelected }]}>
@@ -389,6 +422,21 @@ export default function ProfileScreen() {
               ))}
             </Card>
           </Appear>
+          {activity.length > ACTIVITY_SHOWN ? (
+            <View style={styles.moreRow}>
+              <Pressable accessibilityRole="button" onPress={() => setShowAllActivity(!showAllActivity)} hitSlop={6} style={styles.moreButton}>
+                <T variant="smallStrong" color="accentText">
+                  {showAllActivity ? 'Show less' : `Show more (${Math.min(activity.length, 30) - ACTIVITY_SHOWN})`}
+                </T>
+                <Icon name={showAllActivity ? 'chevronUp' : 'chevron'} size={12} color={theme.accentText} />
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => router.push('/wallet' as Href)} hitSlop={6} style={styles.moreButton}>
+                <T variant="smallStrong" color="textSecondary">
+                  Full history in Wallet
+                </T>
+              </Pressable>
+            </View>
+          ) : null}
         </>
       ) : null}
 
@@ -404,6 +452,7 @@ export default function ProfileScreen() {
             { icon: 'shield' as const, title: 'Consent and data', subtitle: 'How your voice and text are used', href: '/consent' },
             { icon: 'bag' as const, title: 'Store', subtitle: 'Card skins, frames and badges', href: '/store' },
             { icon: 'wallet' as const, title: 'Payout method', subtitle: 'Your bank account or Lynk', href: '/payout-method' },
+            { icon: 'info' as const, title: 'Terms and privacy', subtitle: 'How pay, cash-outs and your data work', href: '/terms' },
           ].map((row, i) => (
             <Pressable
               key={row.title}
@@ -454,6 +503,12 @@ const styles = StyleSheet.create({
   boardEmptyBlock: { alignItems: 'center', gap: 6, padding: 16 },
   medal: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   badgeRow: { marginTop: 4 },
+  chase: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 14 },
+  moreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+  moreButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
+  boardName: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  addFrame: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  getBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, marginTop: 4, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', opacity: 0.9 },
   heroStreak: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, marginTop: 8 },
   weekCard: { gap: 14 },
   weekTop: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },

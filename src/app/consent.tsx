@@ -99,12 +99,16 @@ export default function ConsentScreen() {
       <Checkbox checked={adult} label="I am 18 or older" onToggle={() => !alreadyIn && setAdult(!adult)} />
       <Checkbox
         checked={training}
-        label="I agree my voice and text may be licensed for AI training"
+        label="I agree my voice, text and posts may be licensed for AI training"
         onToggle={() => !alreadyIn && setTraining(!training)}
       />
-      <T variant="small" color="textSecondary">
-        Full terms: [link to terms, once your lawyer has approved them]
-      </T>
+      <Pressable accessibilityRole="link" onPress={() => router.push('/terms' as Href)} style={styles.termsLink} hitSlop={6}>
+        <Icon name="shield" size={14} color={theme.accentText} />
+        <T variant="smallStrong" color="accentText" style={styles.flex}>
+          Read the full terms and privacy
+        </T>
+        <Icon name="chevron" size={14} color={theme.accentText} />
+      </Pressable>
     </Screen>
   );
 }
@@ -114,5 +118,6 @@ const styles = StyleSheet.create({
   info: { gap: 8 },
   infoTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1.5, minHeight: 60 },
+  termsLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
   box: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

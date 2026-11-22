@@ -29,6 +29,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useMyLook } from '@/lib/cosmetics';
+import { press } from '@/lib/haptics';
+import { heroGradient } from '@/theme/accent';
 import { ThemeOverride } from '@/theme/override';
 
 export const APP_NAME = 'Real Talk Yaad';
@@ -84,6 +86,10 @@ const ICONS = {
   eye: { ios: 'eye', android: 'visibility', web: 'visibility' },
   eyeOff: { ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' },
   info: { ios: 'info.circle', android: 'info', web: 'info' },
+  sun: { ios: 'sun.max', android: 'light_mode', web: 'light_mode' },
+  moon: { ios: 'moon', android: 'dark_mode', web: 'dark_mode' },
+  phone: { ios: 'iphone', android: 'smartphone', web: 'smartphone' },
+  palette: { ios: 'paintpalette', android: 'palette', web: 'palette' },
   undo: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' },
   chevronUp: { ios: 'chevron.up', android: 'keyboard_arrow_up', web: 'keyboard_arrow_up' },
   headphones: { ios: 'headphones', android: 'headphones', web: 'headphones' },
@@ -181,6 +187,7 @@ export function Button({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={() => {
+        if (variant === 'primary' || variant === 'reward') press();
         onPress?.();
         if (href) router.push(href);
       }}
@@ -296,8 +303,15 @@ export function Card({
       </View>
     );
   }
+  // Hero cards get a soft jade sheen (any accent works: the shades come from it).
+  const sheen =
+    tone === 'hero'
+      ? Platform.OS === 'web'
+        ? ({ backgroundImage: heroGradient(theme.accent) } as ViewStyle)
+        : ({ experimental_backgroundImage: heroGradient(theme.accent) } as ViewStyle)
+      : null;
   return (
-    <View style={[styles.card, toneStyle, style]}>
+    <View style={[styles.card, toneStyle, sheen, style]}>
       {tone === 'hero' ? <Decor color={theme.onAccent} /> : null}
       {children}
     </View>

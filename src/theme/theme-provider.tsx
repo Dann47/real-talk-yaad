@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 
-import { DEFAULT_ACCENT, normalizeHex } from './accent';
+import { DEFAULT_ACCENT, OLD_DEFAULT_ACCENTS, normalizeHex } from './accent';
 import { storage } from './storage';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -20,17 +20,23 @@ type ThemeSettings = {
 };
 
 const MODE_KEY = 'rty.theme.mode';
+
+/** A fresh install opens in dark mode: the work and social screens (and every accent) are designed dark-first. */
+export const DEFAULT_PREFERENCE: ThemePreference = 'dark';
 const ACCENT_KEY = 'rty.theme.accent';
 
 const ThemeSettingsContext = createContext<ThemeSettings | null>(null);
 
 function savedPreference(): ThemePreference {
   const value = storage.get(MODE_KEY);
-  return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
+  return value === 'light' || value === 'dark' || value === 'system' ? value : DEFAULT_PREFERENCE;
 }
 
 function savedAccent(): string {
-  return normalizeHex(storage.get(ACCENT_KEY) ?? '') ?? DEFAULT_ACCENT;
+  const saved = normalizeHex(storage.get(ACCENT_KEY) ?? '');
+  // Someone still on an old default gets the new one; a colour they picked themselves is kept.
+  if (!saved || OLD_DEFAULT_ACCENTS.includes(saved)) return DEFAULT_ACCENT;
+  return saved;
 }
 
 export function ThemeSettingsProvider({ children }: { children: ReactNode }) {

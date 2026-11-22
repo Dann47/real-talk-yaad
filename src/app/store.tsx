@@ -1,13 +1,16 @@
-import { router, useFocusEffect, type Href } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Confetti } from '@/components/celebrate';
-import { Appear, Avatar, Button, Card, Chip, Decor, Header, Icon, IconTile, NameBadge, Notice, Screen, T } from '@/components/kit';
+import { TileSkeletons } from '@/components/skeleton';
+import { StorePreview as Preview } from '@/components/store-preview';
+import { Appear, Button, Card, Chip, Header, Icon, IconTile, Notice, Screen, T } from '@/components/kit';
 import { useTheme } from '@/hooks/use-theme';
 import { displayName, useAuth } from '@/lib/auth';
-import { useMyLook, type Badge, type CardSkin, type Frame } from '@/lib/cosmetics';
+import { useMyLook } from '@/lib/cosmetics';
+import { useStoreGoal } from '@/lib/store-goal';
 import { money } from '@/lib/format';
 import { HIDDEN, useHideAmounts } from '@/lib/hide-amounts';
 import {
@@ -31,38 +34,6 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'owned', label: 'Yours' },
 ];
 
-/** What an item looks like, drawn from its colours (no images needed). */
-function Preview({ item, name, large }: { item: StoreItem; name: string; large?: boolean }) {
-  const theme = useTheme();
-  if (item.category === 'card') {
-    const skin = item.payload as CardSkin;
-    return (
-      <View style={[styles.cardPreview, { backgroundColor: skin.background, height: large ? 150 : 96 }]}>
-        <Decor color={skin.text} pattern={skin.pattern} />
-        <T variant="caption" style={{ color: skin.text, opacity: 0.85 }}>
-          Available
-        </T>
-        <T variant={large ? 'display' : 'heading'} style={{ color: skin.text }}>
-          J$1,250
-        </T>
-      </View>
-    );
-  }
-  if (item.category === 'frame') {
-    return (
-      <View style={[styles.center, { height: large ? 150 : 96, backgroundColor: theme.accentSoft, borderRadius: 14 }]}>
-        <Avatar letter={name[0]?.toUpperCase() ?? 'R'} size={large ? 72 : 48} frame={(item.payload as Frame).colors} />
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.center, styles.badgePreview, { height: large ? 150 : 96, backgroundColor: theme.accentSoft }]}>
-      <T variant={large ? 'heading' : 'smallStrong'}>{name}</T>
-      <NameBadge badge={item.payload as Badge} />
-    </View>
-  );
-}
-
 function ItemSheet({
   item,
   name,
@@ -81,6 +52,7 @@ function ItemSheet({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { refresh } = useMyLook();
+  const [goalId, setGoal] = useStoreGoal();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +76,7 @@ function ItemSheet({
     setError(null);
     try {
       await buyItem(item.id);
+      if (goalId === item.id) setGoal(null);
       setJustBought(true);
       setConfirming(false);
       setBurst((b) => b + 1);
@@ -176,7 +149,14 @@ function ItemSheet({
           </View>
         ) : short > 0 ? (
           <View style={styles.confirm}>
-            <Button label={`${hidden ? 'A bit' : money(short, 0)} more needed`} variant="secondary" disabled onPress={() => {}} />
+            <T variant="small" color="textSecondary">
+              {hidden ? 'You need a bit more for this.' : `You need ${money(short, 0)} more for this.`}
+            </T>
+            {goalId === item.id ? (
+              <Button label="Saving for this ✓ · Stop" variant="secondary" onPress={() => setGoal(null)} />
+            ) : (
+              <Button label="Save up for this" icon="flame" variant="reward" onPress={() => setGoal(item.id)} />
+            )}
             <Button label="Earn more" icon="bolt" variant="ghost" onPress={() => { close(); router.push('/work' as Href); }} />
           </View>
         ) : (
@@ -195,8 +175,11 @@ export default function StoreScreen() {
   const name = displayName(profile, user);
   const [items, setItems] = useState<StoreItem[] | null>(null);
   const [available, setAvailable] = useState<number | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
+  const params = useLocalSearchParams<{ filter?: string; item?: string }>();
+  const wanted = (['card', 'frame', 'badge', 'owned'] as const).find((f) => f === params.filter);
+  const [filter, setFilter] = useState<Filter>(wanted ?? 'all');
   const [open, setOpen] = useState<StoreItem | null>(null);
+  const [goalId] = useStoreGoal();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -206,6 +189,13 @@ export default function StoreScreen() {
     try {
       const [catalog, balance] = await Promise.all([loadCatalog(), loadAvailable()]);
       setItems(catalog);
+      // Opened from a link to one item (Home or Wallet): show it straight away, once.
+      const itemId = Number(params.item);
+      if (itemId) {
+        const linked = catalog.find((i) => i.id === itemId);
+        if (linked) setOpen(linked);
+        router.setParams({ item: undefined } as never);
+      }
       setAvailable(balance);
       setError(null);
     } catch (e) {
@@ -214,12 +204,14 @@ export default function StoreScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.item]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      if (wanted) setFilter(wanted);
+    }, [load, wanted]),
   );
 
   const shown = (items ?? []).filter((item) => (filter === 'all' ? true : filter === 'owned' ? item.owned : item.category === filter));
@@ -284,9 +276,7 @@ export default function StoreScreen() {
       </Appear>
 
       {!items ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={theme.accentText} />
-        </View>
+        <TileSkeletons count={4} />
       ) : shown.length === 0 ? (
         <Card style={styles.empty}>
           <IconTile icon="bag" tone="reward" size={44} />
@@ -322,6 +312,9 @@ export default function StoreScreen() {
                     <T variant="caption" color="textSecondary" numberOfLines={1} style={styles.flex}>
                       {left !== null && !item.owned ? (left === 0 ? 'Sold out' : `${left} left`) : CATEGORY_LABEL[item.category]}
                     </T>
+                    {item.id === goalId && !item.owned ? (
+                      <Icon name="flame" size={14} color={theme.rewardText} />
+                    ) : null}
                     {item.equipped ? (
                       <Icon name="check" size={14} color={theme.accentText} />
                     ) : (

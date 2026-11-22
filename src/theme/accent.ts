@@ -3,10 +3,14 @@
  * contrast maths so any accent the user picks stays readable.
  */
 
-export const DEFAULT_ACCENT = '#0B6E4F';
+/** Royal Jade: rich enough for white text on buttons (4.9:1), bright enough to glow on the dark background. */
+export const DEFAULT_ACCENT = '#07805C';
+
+/** Earlier defaults: people still on these move to the new default automatically. */
+export const OLD_DEFAULT_ACCENTS = ['#0B6E4F'];
 
 export const ACCENT_PRESETS = [
-  { name: 'Yaad Green', hex: '#0B6E4F' },
+  { name: 'Royal Jade', hex: '#07805C' },
   { name: 'Gold', hex: '#F2B705' },
   { name: 'Riddim Lime', hex: '#B8F44A' },
   { name: 'Pink', hex: '#FF7AA8' },
@@ -96,3 +100,8 @@ function hslToHex(h: number, s: number, l: number): string {
 export const ACCENT_PALETTE: string[][] = [0.32, 0.48, 0.66].map((lightness) =>
   Array.from({ length: 12 }, (_, i) => hslToHex(i * 30, 0.78, lightness)),
 );
+
+/** The big cards' sheen: a lighter top corner fading into a deep shade of the accent. */
+export function heroGradient(accent: string) {
+  return `linear-gradient(135deg, ${mix(accent, '#FFFFFF', 0.14)} 0%, ${accent} 45%, ${mix(accent, '#000000', 0.5)} 100%)`;
+}

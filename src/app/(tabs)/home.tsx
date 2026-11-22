@@ -2,6 +2,8 @@ import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ContinueWork } from '@/components/continue-chat';
+import { HandlePrompt } from '@/components/handle-prompt';
+import { StoreNudge } from '@/components/store-nudge';
 import {
   Appear,
   Avatar,
@@ -179,6 +181,10 @@ export default function HomeScreen() {
           );
         })}
       </Appear>
+
+      <HandlePrompt approvedCount={summary?.approvedCount ?? 0} index={4} />
+
+      <StoreNudge index={4} />
 
       <ContinueWork />
 

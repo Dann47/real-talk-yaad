@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
@@ -6,6 +6,7 @@ import { Confetti, FloatUp } from '@/components/celebrate';
 import { Appear, Avatar, Button, Card, Header, Icon, IconTile, NameBadge, Notice, Screen, T, inputText } from '@/components/kit';
 import { PostActions } from '@/components/post-actions';
 import { PostMedia } from '@/components/post-media';
+import { StoreNudge } from '@/components/store-nudge';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { usePeopleLooks } from '@/lib/cosmetics';
@@ -242,6 +243,10 @@ export default function PostScreen() {
                 : "Thanks! You've reached today's paid limit, but your description still teaches the AI."}
             </T>
           </View>
+          <View style={styles.afterRow}>
+            <Button label="Describe another" icon="edit" variant="reward" compact style={styles.flex} onPress={() => router.replace('/feed?filter=teach' as Href)} />
+          </View>
+          <StoreNudge compact />
         </Appear>
       ) : null}
 
@@ -338,6 +343,7 @@ const styles = StyleSheet.create({
   prompt: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
   input: { minHeight: 96, maxHeight: 200, borderWidth: 1.5, borderRadius: 16, padding: 14, textAlignVertical: 'top' },
   counterRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  afterRow: { flexDirection: 'row', marginTop: 10, marginBottom: 10 },
   thanks: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 16 },
   mine: { gap: 8 },
   locked: { flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -7,6 +7,8 @@ import { FixSheet } from '@/components/fix-editor';
 import { Appear, Button, Card, Chip, Header, Icon, IconButton, Notice, Screen, T, inputText } from '@/components/kit';
 import { TopicPicker } from '@/components/topic-picker';
 import { TypingDots } from '@/components/typing-dots';
+import { StoreNudge } from '@/components/store-nudge';
+import { NextUp } from '@/components/next-up';
 import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import type { ChatMessage } from '@/lib/chat';
@@ -105,6 +107,9 @@ export default function TalkScreen() {
             </Card>
           </Appear>
         ) : null}
+        {ended ? <NextUp after="talk" index={1} /> : null}
+        {ended ? <StoreNudge index={2} compact /> : null}
+        {ended ? <T variant="heading">Or chat again</T> : null}
         <TopicPicker onPick={pickTopic} />
       </Screen>
     );
@@ -221,7 +226,7 @@ export default function TalkScreen() {
             <View style={[styles.tip, { borderTopColor: theme.backgroundSelected }]}>
               <Icon name="sparkles" size={14} color={theme.accentText} />
               <T variant="caption" color="textSecondary" style={styles.flex}>
-                If the AI says something that doesn't sound Jamaican, tap Correct under it.
+                If the AI says something that doesn't sound Jamaican, tap "Correct this" under it.
                 {rateLine ? ` You earn ${rateLine} once other speakers agree.` : ''}
               </T>
             </View>

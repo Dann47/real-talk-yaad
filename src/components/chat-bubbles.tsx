@@ -200,7 +200,7 @@ export function MessageRow({
             {canCorrect ? (
               <SmallAction
                 icon="edit"
-                label={selected ? 'Correcting' : 'Correct'}
+                label={selected ? 'Correcting this' : 'Correct this'}
                 active={selected}
                 accessibilityLabel="Correct this reply"
                 onPress={onCorrect}

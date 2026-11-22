@@ -11,6 +11,8 @@ import { Appear, Button, Card, Chip, Header, Icon, IconButton, Notice, Screen, T
 import { LevelMeter } from '@/components/level-meter';
 import { TopicPicker } from '@/components/topic-picker';
 import { TypingDots } from '@/components/typing-dots';
+import { StoreNudge } from '@/components/store-nudge';
+import { NextUp } from '@/components/next-up';
 import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import type { ChatMessage } from '@/lib/chat';
@@ -210,6 +212,9 @@ export default function VoiceScreen() {
             </Card>
           </Appear>
         ) : null}
+        {ended ? <NextUp after="voice" index={1} /> : null}
+        {ended ? <StoreNudge index={2} compact /> : null}
+        {ended ? <T variant="heading">Or chat again</T> : null}
         <TopicPicker onPick={pickTopic} />
       </Screen>
     );
@@ -345,7 +350,7 @@ export default function VoiceScreen() {
               <Icon name="sparkles" size={14} color={theme.accentText} />
               <T variant="caption" color="textSecondary" style={styles.flex}>
                 Hold the mic while you talk and let go to send. Slide up to delete. If we heard you wrong, tap Fix the
-                words. If the AI sounds off, tap Correct.
+                words. If the AI sounds off, tap "Correct this".
                 {rateLine ? ` You earn ${rateLine} once other speakers agree.` : ''}
               </T>
             </View>

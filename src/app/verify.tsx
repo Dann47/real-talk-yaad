@@ -18,6 +18,8 @@ import Animated, {
 import { Confetti, FloatUp } from "@/components/celebrate";
 import { DiffText } from "@/components/fix-editor";
 import { PostMedia } from "@/components/post-media";
+import { StoreNudge } from "@/components/store-nudge";
+import { NextUp } from "@/components/next-up";
 import {
   Appear,
   Button,
@@ -524,6 +526,8 @@ export default function VerifyScreen() {
               "Waiting" votes are paid when another speaker agrees with you.
               You'll see it on Home.
             </T>
+            <NextUp after="verify" index={2} />
+            <StoreNudge index={3} />
             {outcomes.map((o, i) => {
               const text =
                 o.item.kind === "correction" ? o.item.corrected : o.item.text;

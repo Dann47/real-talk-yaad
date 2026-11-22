@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Appear, Button, Card, Icon, IconTile, Notice, ProgressBar, Screen, SectionHeader, T, type IconName } from '@/components/kit';
+import { StoreNudge } from '@/components/store-nudge';
 import { useTheme } from '@/hooks/use-theme';
 import { money } from '@/lib/format';
 import {
@@ -51,7 +52,8 @@ const fullDate = (iso: string) =>
   }).format(new Date(iso));
 
 const DASH = '—';
-const PAGE = 25;
+/** History items shown before "Show all". */
+const COLLAPSED = 6;
 
 type Filter = 'all' | 'earned' | 'review' | 'cashouts' | 'store';
 const FILTERS: { id: Filter; label: string }[] = [
@@ -310,7 +312,8 @@ export default function WalletScreen() {
   const theme = useTheme();
   const { data, error, refreshing, refresh } = useWallet();
   const [filter, setFilter] = useState<Filter>('all');
-  const [shown, setShown] = useState(PAGE);
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? Number.POSITIVE_INFINITY : COLLAPSED;
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [hidden, toggleHidden] = useHideAmounts();
@@ -489,6 +492,8 @@ export default function WalletScreen() {
         </Appear>
       ) : null}
 
+      <StoreNudge index={2} />
+
       {/* Payout method */}
       <Appear index={3}>
         <Pressable
@@ -544,7 +549,7 @@ export default function WalletScreen() {
               accessibilityState={{ selected: on }}
               onPress={() => {
                 setFilter(f.id);
-                setShown(PAGE);
+                setExpanded(false);
               }}
               style={[styles.filter, { backgroundColor: on ? theme.accent : theme.backgroundElement, borderColor: on ? theme.accent : theme.backgroundSelected }]}>
               <T variant="smallStrong" style={{ color: on ? theme.onAccent : theme.text }}>
@@ -671,7 +676,14 @@ export default function WalletScreen() {
         </Appear>
       ))}
 
-      {lines.length > shown ? <Button label={`Show more (${lines.length - shown})`} variant="secondary" onPress={() => setShown((n) => n + PAGE)} /> : null}
+      {lines.length > COLLAPSED ? (
+        <Pressable accessibilityRole="button" onPress={() => setExpanded(!expanded)} style={styles.showAll} hitSlop={6}>
+          <T variant="smallStrong" color="accentText">
+            {expanded ? 'Show less' : `Show all ${lines.length}`}
+          </T>
+          <Icon name={expanded ? 'chevronUp' : 'chevron'} size={14} color={theme.accentText} />
+        </Pressable>
+      ) : null}
 
       <T variant="caption" color="textSecondary" style={styles.center}>
         "Paid" work counts toward your balance. "In review" is added once other speakers agree.
@@ -722,5 +734,6 @@ const styles = StyleSheet.create({
   history: { padding: 6 },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 8 },
   right: { alignItems: 'flex-end', gap: 4 },
+  showAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
   pill: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 999 },
 });

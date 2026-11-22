@@ -47,6 +47,13 @@ export default function SignUpScreen() {
       footer={
         <View style={styles.footer}>
           <Button label={busy ? 'Creating account...' : 'Create account'} disabled={busy} onPress={create} />
+          <T variant="caption" color="textSecondary" style={styles.agree}>
+            By creating an account you agree to the{' '}
+            <T variant="caption" color="accentText" style={styles.link} onPress={() => router.push('/terms' as Href)} accessibilityRole="link">
+              Terms and privacy
+            </T>
+            .
+          </T>
           <Button label="Already have an account? Sign in" variant="ghost" href={'/sign-in' as Href} />
         </View>
       }>
@@ -103,4 +110,6 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
   footer: { gap: 4 },
+  agree: { textAlign: 'center', marginTop: 4 },
+  link: { textDecorationLine: 'underline' },
 });

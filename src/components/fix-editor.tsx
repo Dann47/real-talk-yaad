@@ -126,10 +126,17 @@ export function FixSheet({
   const clean = draft.trim().replace(/\s+/g, ' ');
 
   const pickWord = (part: { start: number; end: number }) => {
-    input.current?.focus();
-    // Select the word in the box so typing replaces it. Released right after, so the cursor moves freely.
-    setSelection({ start: part.start, end: part.end });
-    setTimeout(() => setSelection(undefined), 120);
+    const box = input.current;
+    if (!box) return;
+    // If the box still has focus but the keyboard was closed (back button / swipe down), focus() alone does
+    // nothing. Blur first, then focus on the next frame so the keyboard opens again.
+    if (box.isFocused()) box.blur();
+    setTimeout(() => {
+      box.focus();
+      // Select the word so typing replaces it. Released right after, so the cursor moves freely.
+      setSelection({ start: part.start, end: part.end });
+      setTimeout(() => setSelection(undefined), 150);
+    }, 60);
   };
 
   const send = async () => {

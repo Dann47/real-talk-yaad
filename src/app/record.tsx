@@ -9,6 +9,8 @@ import { HoldToRecord } from '@/components/hold-to-record';
 import { Appear, Button, Card, Chip, Header, Icon, IconTile, Notice, Screen, T, TextField, goBack, type IconName } from '@/components/kit';
 import { LevelMeter } from '@/components/level-meter';
 import { TakeWaveform } from '@/components/take-waveform';
+import { StoreNudge } from '@/components/store-nudge';
+import { NextUp } from '@/components/next-up';
 import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
@@ -466,6 +468,13 @@ export default function RecordScreen() {
             </T>
           </Card>
         </Appear>
+
+        {finished ? (
+          <>
+            <NextUp after="record" index={1} />
+            <StoreNudge index={2} />
+          </>
+        ) : null}
 
         {saved.length ? (
           <>

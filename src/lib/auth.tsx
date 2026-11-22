@@ -5,7 +5,7 @@ import { AppState, Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
 /** Bump this when the terms change: everyone is asked to accept again. */
-export const TERMS_VERSION = '2026-11-v1';
+export const TERMS_VERSION = '2026-11-v2';
 
 export type Profile = {
   id: string;

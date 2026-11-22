@@ -87,6 +87,7 @@ function RootNavigator() {
         <Stack.Screen name="cash-out" />
         <Stack.Screen name="new-post" />
         <Stack.Screen name="post/[id]" />
+        <Stack.Screen name="leaderboard" />
       </Stack.Protected>
 
       <Stack.Protected guard={signedIn}>
@@ -104,6 +105,8 @@ function RootNavigator() {
 
       {/* Open to everyone: the reset signs the user in part-way through. */}
       <Stack.Screen name="forgot-password" />
+      {/* Readable before signing up, and from inside the app. */}
+      <Stack.Screen name="terms" />
     </Stack>
   );
 }

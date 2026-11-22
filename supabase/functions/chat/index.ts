@@ -19,7 +19,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const TERMS_VERSION = '2026-11-v1'; // keep in step with src/lib/auth.tsx
+const TERMS_VERSION = '2026-11-v2'; // keep in step with src/lib/auth.tsx
 const HISTORY_LIMIT = 20; // messages sent to the model as context
 const MAX_INPUT = 1000; // characters per user message or correction
 

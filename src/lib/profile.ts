@@ -110,7 +110,34 @@ export function badgesFor(summary: MeSummary, streak: number): Badge[] {
   return list.map(({ have, need, ...badge }) => ({ ...badge, earned: have >= need, progress: Math.min(1, have / need) }));
 }
 
-export type LeaderRow = { rank: number; name: string; approved: number; is_me: boolean; scope: string };
+export type LeaderRow = {
+  rank: number;
+  name: string;
+  approved: number;
+  is_me: boolean;
+  /** "Kingston" or "Jamaica". */
+  scope_label: string;
+  frame: { colors: string[] } | null;
+  badge: { icon: string; color: string; label: string } | null;
+};
+
+export type LeaderScope = 'parish' | 'all';
+export type LeaderPeriod = 'week' | 'all';
+
+export async function loadLeaderboard(scope: LeaderScope, period: LeaderPeriod, lim = 50): Promise<LeaderRow[]> {
+  const { data, error } = await supabase.rpc('leaderboard', { scope, period, lim });
+  if (error) throw new Error('Could not load the leaderboard. Pull down to try again.');
+  return ((data ?? []) as LeaderRow[]).map((r) => ({ ...r, approved: Number(r.approved) }));
+}
+
+/** "3 more approved to pass Kemar" for you, or null. */
+export function nextTarget(rows: LeaderRow[]) {
+  const me = rows.find((r) => r.is_me);
+  if (!me) return null;
+  const above = rows.filter((r) => r.rank < me.rank).sort((a, b) => b.rank - a.rank)[0];
+  if (!above) return null;
+  return { name: above.name, need: Math.max(1, above.approved - me.approved + 1), rank: above.rank };
+}
 
 type MeData = { summary: MeSummary; leaders: LeaderRow[]; activity: Activity[] };
 
@@ -118,7 +145,7 @@ export async function loadMe(): Promise<MeData> {
   const since = new Date(Date.now() - 45 * 86_400_000).toISOString();
   const [summaryResult, boardResult, activityResult] = await Promise.all([
     supabase.rpc('me_summary'),
-    supabase.rpc('leaderboard'),
+    supabase.rpc('leaderboard', { scope: 'parish', period: 'week', lim: 3 }),
     supabase
       .from('earnings')
       .select('task, ref_id, amount_jmd, status, created_at, detail')
@@ -181,4 +208,52 @@ export function shortMoney(amount: number) {
   if (amount >= 1_000_000) return `J$${(amount / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
   if (amount >= 1000) return `J$${(amount / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return `J$${Math.round(amount)}`;
+}
+
+/* ---------- Handles ---------- */
+
+const PARISH_TAG: Record<string, string> = {
+  Kingston: 'kgn',
+  'St. Andrew': 'sta',
+  'St. Catherine': 'stc',
+  Clarendon: 'clar',
+  Manchester: 'manch',
+  'St. Elizabeth': 'stbeth',
+  Westmoreland: 'wmd',
+  Hanover: 'hanover',
+  'St. James': 'mobay',
+  Trelawny: 'trelawny',
+  'St. Ann': 'stann',
+  'St. Mary': 'stmary',
+  Portland: 'portland',
+  'St. Thomas': 'stt',
+};
+
+/** Ideas for a handle from a name and parish: "daniel_kgn", "daniel", "daniel876"... */
+export function handleIdeas(name: string, parish: string | null) {
+  const base =
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .split(/\s+/)[0]
+      ?.replace(/[^a-z0-9_]/g, '')
+      .slice(0, 16) || 'yaadie';
+  const tag = parish ? PARISH_TAG[parish] : null;
+  const ideas = [tag ? `${base}_${tag}` : null, base, `${base}_876`, `${base}${new Date().getFullYear() % 100}`];
+  for (let i = 0; i < 3; i++) ideas.push(`${base}${Math.floor(100 + Math.random() * 900)}`);
+  return [...new Set(ideas.filter((h): h is string => !!h && h.length >= 3).map((h) => h.slice(0, 24)))];
+}
+
+export async function handleAvailable(handle: string) {
+  const { data, error } = await supabase.rpc('handle_available', { wanted: handle });
+  return !error && data === true;
+}
+
+/** The first idea nobody has taken yet. */
+export async function suggestHandle(name: string, parish: string | null) {
+  for (const idea of handleIdeas(name, parish)) {
+    if (await handleAvailable(idea)) return idea;
+  }
+  return '';
 }
