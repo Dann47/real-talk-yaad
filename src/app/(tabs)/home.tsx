@@ -1,7 +1,7 @@
 import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { ContinueChat } from '@/components/continue-chat';
+import { ContinueWork } from '@/components/continue-chat';
 import {
   Appear,
   Avatar,
@@ -9,16 +9,21 @@ import {
   Card,
   Chip,
   IconTile,
-  ListRow,
+  Notice,
   ProgressBar,
   Screen,
   SectionHeader,
   T,
 } from '@/components/kit';
-import { money, tasks, user, wallet } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
-import { payLabel, useRates } from '@/lib/rates';
 import { displayName, useAuth } from '@/lib/auth';
+import { levelFor, useHomeSummary } from '@/lib/earnings';
+import { money } from '@/lib/format';
+import { payLabel, useRates } from '@/lib/rates';
+import { tasks } from '@/lib/tasks';
+
+/** Shown while the numbers load. */
+const DASH = '—';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -27,12 +32,12 @@ function greeting() {
   return 'Evenin';
 }
 
-const QUICK = ['talk', 'record', 'verify', 'teach'] as const;
+const QUICK = ['talk', 'voice', 'record', 'verify'] as const;
 const QUICK_LABEL: Record<(typeof QUICK)[number], string> = {
   talk: 'Talk',
+  voice: 'Voice',
   record: 'Record',
   verify: 'Verify',
-  teach: 'Teach',
 };
 
 export default function HomeScreen() {
@@ -40,41 +45,68 @@ export default function HomeScreen() {
   const rates = useRates();
   const { profile, user: account } = useAuth();
   const name = displayName(profile, account);
-  const weekProgress = wallet.thisWeek / user.weekGoal;
+  const { summary, error, refreshing, refresh } = useHomeSummary();
+  const level = levelFor(summary?.approvedCount ?? 0);
+  const weekProgress = summary ? summary.thisWeek / summary.weekGoal : 0;
+  const streak = summary?.streakDays ?? 0;
 
   return (
-    <Screen tabs title="Home">
+    <Screen tabs title="Home" onRefresh={refresh} refreshing={refreshing && !!summary}>
       <Appear style={styles.top}>
         <View style={styles.flex}>
           <T variant="overline" color="textSecondary">
             {greeting()}
           </T>
-          <T variant="title">{name}</T>
+          <T variant="title" numberOfLines={1}>
+            {name}
+          </T>
+          {summary ? (
+            <T variant="caption" color="textSecondary">
+              Level {level.level} · {level.name}
+            </T>
+          ) : null}
         </View>
-        <Chip tone="reward" icon="flame" label={`${user.streakDays}-day streak`} />
+        {summary ? (
+          <Chip tone={streak ? 'reward' : 'soft'} icon="flame" label={streak ? `${streak}-day streak` : 'Start a streak'} />
+        ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/profile' as Href)}>
           <Avatar letter={name[0]?.toUpperCase() ?? 'R'} />
         </Pressable>
       </Appear>
+
+      {error ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`${error} Tap to try again.`} onPress={refresh}>
+          <Notice tone="error" text={`${error} Tap to try again.`} />
+        </Pressable>
+      ) : null}
 
       <Appear index={1}>
         <Card tone="hero" style={styles.hero}>
           <T variant="overline" style={{ color: theme.onAccent, opacity: 0.85 }}>
             Available balance
           </T>
-          <T variant="display" style={{ color: theme.onAccent }}>
-            {money(wallet.balance)}
-          </T>
+          <View style={styles.balanceRow}>
+            <T variant="display" style={{ color: theme.onAccent }}>
+              {summary ? money(summary.balance) : DASH}
+            </T>
+            {summary && summary.today > 0 ? <Chip tone="reward" icon="trend" label={`+${money(summary.today, 0)} today`} /> : null}
+          </View>
           <T variant="small" style={{ color: theme.onAccent }}>
-            {money(wallet.pending, 0)} waiting for review
+            {!summary
+              ? 'Loading your earnings...'
+              : summary.pending > 0
+                ? `${money(summary.pending, 0)} waiting for other speakers to check`
+                : summary.totalCount
+                  ? 'Nothing waiting for review'
+                  : 'Do your first task to start earning'}
           </T>
           <View style={styles.goal}>
             <View style={styles.goalLabels}>
               <T variant="caption" style={{ color: theme.onAccent }}>
-                This week {money(wallet.thisWeek, 0)}
+                This week {summary ? money(summary.thisWeek, 0) : DASH}
               </T>
               <T variant="caption" style={{ color: theme.onAccent }}>
-                Goal {money(user.weekGoal, 0)}
+                Goal {summary ? money(summary.weekGoal, 0) : DASH}
               </T>
             </View>
             <ProgressBar value={weekProgress} label="Weekly earning goal" color={theme.reward} />
@@ -86,9 +118,14 @@ export default function HomeScreen() {
         </Card>
       </Appear>
 
-      <Appear index={2} style={styles.quickRow}>
+      <Appear index={2}>
+        <SectionHeader title="Start earning" action="All work" href={'/work' as Href} />
+      </Appear>
+      <Appear index={3} style={styles.quickRow}>
         {QUICK.map((id) => {
           const task = tasks.find((t) => t.id === id)!;
+          const rate = rates[task.id];
+          const today = summary?.todayByTask[id] ?? 0;
           return (
             <Pressable
               key={id}
@@ -103,43 +140,27 @@ export default function HomeScreen() {
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 },
               ]}>
-              <IconTile icon={task.icon} tone={task.tone} size={40} />
+              <View>
+                <IconTile icon={task.icon} tone={task.tone} size={40} />
+                {today ? (
+                  <View style={[styles.badge, { backgroundColor: theme.reward, borderColor: theme.backgroundElement }]}>
+                    <T variant="caption" style={{ color: theme.onReward, fontSize: 10, lineHeight: 13 }}>
+                      {today}
+                    </T>
+                  </View>
+                ) : null}
+              </View>
               <T variant="smallStrong">{QUICK_LABEL[id]}</T>
+              <T variant="caption" color="rewardText" numberOfLines={1}>
+                {rate ? `${money(rate.amount_jmd, 0)}/${rate.unit}` : ' '}
+              </T>
             </Pressable>
           );
         })}
       </Appear>
 
-      <Appear index={3}>
-        <Card style={styles.level}>
-          <IconTile icon="sparkles" tone="reward" />
-          <View style={styles.flex}>
-            <View style={styles.levelTop}>
-              <T variant="smallStrong">
-                Level {user.level} · {user.levelName}
-              </T>
-              <T variant="caption" color="textSecondary">
-                {user.tasksToNextLevel} to go
-              </T>
-            </View>
-            <ProgressBar value={user.levelProgress} label="Progress to next level" />
-          </View>
-        </Card>
-      </Appear>
+      <ContinueWork />
 
-      <ContinueChat />
-
-      <Appear index={4}>
-        <SectionHeader title="Today's work" action="See all" href={'/work' as Href} />
-      </Appear>
-      {tasks
-        .filter((task) => task.id !== 'voice')
-        .slice(0, 3)
-        .map((task, i) => (
-          <Appear key={task.id} index={5 + i}>
-            <ListRow icon={task.icon} tone={task.tone} title={task.title} subtitle={task.detail} value={payLabel(rates[task.id])} href={task.href} />
-          </Appear>
-        ))}
     </Screen>
   );
 }
@@ -148,11 +169,22 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hero: { gap: 4, padding: 22 },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
   goal: { gap: 8, marginTop: 14 },
   goalLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   heroButtons: { flexDirection: 'row', gap: 10, marginTop: 16 },
   quickRow: { flexDirection: 'row', gap: 10 },
-  quick: { flex: 1, alignItems: 'center', gap: 8, paddingVertical: 14, borderRadius: 20, borderWidth: 1 },
-  level: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  levelTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  quick: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, paddingHorizontal: 4, borderRadius: 20, borderWidth: 1 },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -2,7 +2,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Appear, Icon, T, type IconName } from '@/components/kit';
-import { money } from '@/data/sample';
+import { DiffText } from '@/components/fix-editor';
+import { money } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
 import type { ChatMessage, Correction } from '@/lib/chat';
 
@@ -77,7 +78,11 @@ export function CorrectionCard({ correction }: { correction: Correction }) {
           </View>
         ) : null}
       </View>
-      <T variant="bodyStrong">{correction.corrected}</T>
+      {correction.original ? (
+        <DiffText original={correction.original} fixed={correction.corrected} size="small" />
+      ) : (
+        <T variant="bodyStrong">{correction.corrected}</T>
+      )}
       <View style={styles.row}>
         <Icon name={correction.status === 'approved' ? 'check' : 'shield'} size={13} color={theme.textSecondary} />
         <T variant="caption" color="textSecondary" style={styles.flex}>
@@ -100,6 +105,8 @@ export function MessageRow({
   canCorrect,
   onCorrect,
   onReplay,
+  onPlayMine,
+  playingMine,
 }: {
   message: ChatMessage;
   correction?: Correction;
@@ -108,6 +115,9 @@ export function MessageRow({
   onCorrect: () => void;
   /** Voice chat: read an AI reply aloud again. */
   onReplay?: () => void;
+  /** Voice chat: play back what you recorded, so you can check what we heard. */
+  onPlayMine?: () => void;
+  playingMine?: boolean;
 }) {
   const theme = useTheme();
   const mine = message.role === 'user';
@@ -137,6 +147,15 @@ export function MessageRow({
             </T>
           </View>
           <View style={styles.mineMeta}>
+            {spoken && onPlayMine && !pending ? (
+              <SmallAction
+                icon={playingMine ? 'stop' : 'play'}
+                label={playingMine ? 'Stop' : 'Play'}
+                active={playingMine}
+                accessibilityLabel={playingMine ? 'Stop your recording' : 'Play your recording'}
+                onPress={onPlayMine}
+              />
+            ) : null}
             {spoken && canCorrect && !pending ? (
               <SmallAction
                 icon="edit"

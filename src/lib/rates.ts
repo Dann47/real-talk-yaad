@@ -1,7 +1,7 @@
 /** Pay rates come from the `task_rates` table, so they can change without an app update. */
 import { useEffect, useState } from 'react';
 
-import { money } from '@/data/sample';
+import { money } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
 export type Rate = {

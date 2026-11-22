@@ -20,6 +20,8 @@ export type ChatMode = 'text' | 'voice';
 export type Correction = {
   id: number;
   message_id: number;
+  /** What it said before the fix (missing on fixes saved by an older app). */
+  original?: string;
   corrected: string;
   status: 'pending' | 'approved' | 'rejected';
   /** ai_reply = fixed the AI's words; transcript = fixed what speech-to-text heard. */
@@ -32,7 +34,8 @@ export type Topic = { id: string; title: string; guidance: string };
 
 export type Conversation = { id: string; mode: ChatMode; topic: Topic };
 
-async function call<T>(body: Record<string, unknown>): Promise<T> {
+/** Calls the `chat` Edge Function and turns its errors into readable messages. */
+export async function call<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>('chat', { body });
   if (error) {
     // Show the server's own message when there is one ("You have reached today's limit...").
@@ -85,7 +88,7 @@ export async function loadConversation(conversationId: string) {
       .order('id', { ascending: true }),
     supabase
       .from('corrections')
-      .select('id, message_id, corrected, status, kind, amount_jmd')
+      .select('id, message_id, original, corrected, status, kind, amount_jmd')
       .eq('conversation_id', conversationId),
   ]);
   const row = conversationResult.data as { id: string; mode: ChatMode; topics: Topic | Topic[] | null } | null;
@@ -98,32 +101,47 @@ export async function loadConversation(conversationId: string) {
   };
 }
 
+/** Closes a conversation so it stops showing under "Continue your chat". What was earned is kept. */
+export async function endConversation(conversationId: string) {
+  await call<{ ended: boolean }>({ action: 'end', conversationId });
+}
+
 export type ChatSummary = { id: string; mode: ChatMode; topicTitle: string; messageCount: number; startedAt: string };
 
-/** The user's most recent chat that still has room to continue, if any. */
-export async function latestConversation(): Promise<ChatSummary | null> {
+/** Unfinished chats are listed for this long, then left out (they can still be found in history later). */
+const OPEN_CHAT_DAYS = 14;
+
+/** The user's unfinished chats (typed and voice), newest first. Chats with only the AI's greeting are left out. */
+export async function openConversations(): Promise<ChatSummary[]> {
+  const since = new Date(Date.now() - OPEN_CHAT_DAYS * 86_400_000).toISOString();
   const { data } = await supabase
     .from('conversations')
     .select('id, mode, created_at, topics(title), messages(count)')
     .is('ended_at', null)
+    .gte('created_at', since)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!data) return null;
-  const row = data as {
+    .limit(10);
+  const rows = (data ?? []) as {
     id: string;
     mode: ChatMode;
     created_at: string;
     topics: { title: string } | { title: string }[] | null;
     messages: { count: number }[] | null;
-  };
-  return {
-    id: row.id,
-    mode: row.mode,
-    topicTitle: firstOf(row.topics)?.title ?? 'Your chat',
-    messageCount: row.messages?.[0]?.count ?? 0,
-    startedAt: row.created_at,
-  };
+  }[];
+  return rows
+    .map((row) => ({
+      id: row.id,
+      mode: row.mode,
+      topicTitle: firstOf(row.topics)?.title ?? 'Your chat',
+      messageCount: row.messages?.[0]?.count ?? 0,
+      startedAt: row.created_at,
+    }))
+    .filter((chat) => chat.messageCount > 1);
+}
+
+/** The most recent unfinished chat, if any. */
+export async function latestConversation(): Promise<ChatSummary | null> {
+  return (await openConversations())[0] ?? null;
 }
 
 /** All active conversation topics, in display order. */

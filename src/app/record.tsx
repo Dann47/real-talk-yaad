@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { Confetti, FloatUp } from '@/components/celebrate';
+import { DiffText, FixSheet } from '@/components/fix-editor';
 import { HoldToRecord } from '@/components/hold-to-record';
 import { Appear, Button, Card, Chip, Header, Icon, IconTile, Notice, Screen, T, TextField, goBack, type IconName } from '@/components/kit';
 import { LevelMeter } from '@/components/level-meter';
@@ -12,7 +13,7 @@ import { money } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth';
 import { useRates } from '@/lib/rates';
-import { fixProblem, nextPrompts, saveRecording, type Prompt } from '@/lib/recordings';
+import { finishSet, fixProblem, markSkipped, nextPrompts, saveDraftFixes, saveRecording, type SetLine } from '@/lib/recordings';
 import { QUIET_LEVEL, clock, useRecorder, type Take } from '@/lib/use-recorder';
 
 const MIN_MS = 800;
@@ -169,12 +170,15 @@ export default function RecordScreen() {
   const player = useAudioPlayer();
   const playback = useAudioPlayerStatus(player);
 
-  const [prompts, setPrompts] = useState<Prompt[] | null>(null);
+  const [prompts, setPrompts] = useState<SetLine[] | null>(null);
+  const [setId, setSetId] = useState<string | null>(null);
+  const [resumed, setResumed] = useState(false);
+  const [earnedBefore, setEarnedBefore] = useState(0);
+  const [skippedIds, setSkippedIds] = useState<number[]>([]);
+  const finishedSet = useRef<string | null>(null);
   const [topic, setTopic] = useState<string | null>(null);
   const [choices, setChoices] = useState<Record<number, Choice>>({});
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [draftError, setDraftError] = useState<string | null>(null);
   const [lastAmount, setLastAmount] = useState(0);
   const [index, setIndex] = useState(0);
   const [take, setTake] = useState<Take | null>(null);
@@ -221,20 +225,30 @@ export default function RecordScreen() {
   };
 
   /* ---------- Loading lines ---------- */
-  const load = useCallback(async () => {
+  const load = useCallback(async (fresh = false) => {
     setError(null);
     setPrompts(null);
     setIndex(0);
     setTake(null);
     setChoices({});
     setEditing(false);
-    setDraftError(null);
     setSaved([]);
     setSkipped(0);
     setStreak(0);
     try {
-      const set = await nextPrompts();
+      const set = await nextPrompts(fresh);
+      const firstOpen = set.prompts.findIndex((p) => !p.done);
+      setSetId(set.setId);
+      setResumed(set.resumed && firstOpen > 0);
+      setEarnedBefore(set.earned);
+      setSkippedIds(set.prompts.filter((p) => p.done === 'skipped').map((p) => p.id));
       setTopic(set.topic);
+      // Bring back fixes typed before leaving.
+      const drafts = Object.fromEntries(
+        set.prompts.filter((p) => !p.done && p.draft_fix).map((p) => [p.id, { kind: 'fixed' as const, text: p.draft_fix! }]),
+      );
+      setChoices(drafts);
+      setIndex(firstOpen === -1 ? set.prompts.length : firstOpen);
       setPrompts(set.prompts);
     } catch (e) {
       setError((e as Error).message);
@@ -243,7 +257,7 @@ export default function RecordScreen() {
   }, []);
 
   useEffect(() => {
-    load();
+    load(false);
   }, [load]);
 
   /* ---------- Playback ---------- */
@@ -281,7 +295,9 @@ export default function RecordScreen() {
 
   /* ---------- Recording ---------- */
   const prompt = prompts?.[index];
-  const earned = saved.reduce((sum, r) => sum + r.amount, 0);
+  const earned = earnedBefore + saved.reduce((sum, r) => sum + r.amount, 0);
+  const recordedBefore = prompts?.filter((p) => p.done === 'recorded').length ?? 0;
+  const recordedCount = recordedBefore + saved.length;
   const rate = rates.record;
   const fixRate = rates.record_fix;
   const readPay = rate?.amount_jmd ?? 0;
@@ -302,17 +318,20 @@ export default function RecordScreen() {
     stopPlayback();
     setError(null);
     setTake(null);
-    setDraft(choice?.text ?? prompt.text);
-    setDraftError(null);
     setEditing(true);
   };
 
-  const saveFix = () => {
-    if (!prompt) return;
-    const problem = fixProblem(prompt.text, draft);
-    if (problem) return setDraftError(problem);
-    setChoices((prev) => ({ ...prev, [prompt.id]: { kind: 'fixed', text: draft.trim().replace(/\s+/g, ' ') } }));
-    setEditing(false);
+  const saveFix = (fixed: string) => {
+    if (!prompt) return false;
+    setChoices((prev) => {
+      const next = { ...prev, [prompt.id]: { kind: 'fixed' as const, text: fixed } };
+      if (setId) {
+        const fixes = Object.fromEntries(Object.entries(next).filter(([, c]) => c.kind === 'fixed').map(([id, c]) => [id, c.text]));
+        saveDraftFixes(setId, fixes).catch(() => {});
+      }
+      return next;
+    });
+    return true;
   };
 
   const undoFix = () => {
@@ -322,6 +341,10 @@ export default function RecordScreen() {
     setChoices((prev) => {
       const next = { ...prev };
       delete next[prompt.id];
+      if (setId) {
+        const fixes = Object.fromEntries(Object.entries(next).filter(([, c]) => c.kind === 'fixed').map(([id, c]) => [id, c.text]));
+        saveDraftFixes(setId, fixes).catch(() => {});
+      }
       return next;
     });
   };
@@ -383,8 +406,21 @@ export default function RecordScreen() {
     setError(null);
     setSkipped((s) => s + 1);
     setStreak(0);
+    if (prompt && setId) {
+      const next = [...skippedIds, prompt.id];
+      setSkippedIds(next);
+      markSkipped(setId, next).catch(() => {});
+    }
     nextCard(-1);
   };
+
+  // When the last line is done, close the set so the next visit starts fresh lines.
+  useEffect(() => {
+    if (prompts && prompts.length && index >= prompts.length && setId && finishedSet.current !== setId) {
+      finishedSet.current = setId;
+      finishSet(setId).catch(() => {});
+    }
+  }, [prompts, index, setId]);
 
   /* ---------- Loading ---------- */
   if (!prompts) {
@@ -402,14 +438,14 @@ export default function RecordScreen() {
 
   /* ---------- Finished set / nothing left ---------- */
   if (!prompt) {
-    const finished = saved.length > 0;
+    const finished = recordedCount > 0;
     return (
       <Screen
         title="Record lines"
         header={<Header title="Record lines" subtitle={finished ? 'Set complete' : 'All done for now'} />}
         footer={
           <View style={styles.footerGap}>
-            {finished || skipped > 0 ? <Button label="Record more lines" icon="mic" onPress={load} /> : null}
+            {finished || skipped > 0 ? <Button label="Record more lines" icon="mic" onPress={() => load(true)} /> : null}
             <Button label="Back to work" variant={finished ? 'secondary' : 'primary'} onPress={goBack} />
           </View>
         }>
@@ -425,13 +461,13 @@ export default function RecordScreen() {
             </T>
             <T variant="body" style={{ color: theme.onAccent }}>
               {finished
-                ? `${saved.length} ${saved.length === 1 ? 'line' : 'lines'} recorded. The money lands in your wallet once other speakers check them.`
+                ? `${recordedCount} ${recordedCount === 1 ? 'line' : 'lines'} recorded. The money lands in your wallet once other speakers check them.`
                 : "You've read every line we have right now. New ones are on the way."}
             </T>
           </Card>
         </Appear>
 
-        {finished ? (
+        {saved.length ? (
           <>
             <T variant="heading">Hear yourself</T>
             {saved.map((line, i) => (
@@ -492,22 +528,12 @@ export default function RecordScreen() {
       header={
         <Header
           title="Record lines"
-          subtitle={rate ? `${money(readPay, 0)} per line · ${money(fixedPay, 0)} if you fix it` : `Line ${index + 1} of ${prompts.length}`}
+          subtitle={rate ? `${money(readPay, 0)} a line · ${money(fixedPay, 0)} if fixed` : `Line ${index + 1} of ${prompts.length}`}
           right={<Chip label={`${money(earned, 0)} so far`} />}
         />
       }
       footer={
-        editing ? (
-          <View style={styles.takeRow}>
-            <Button label="Cancel" variant="secondary" compact onPress={() => setEditing(false)} />
-            <Button
-              label={fixRate ? `Use my fix · +${money(fixedPay, 0)}` : 'Use my fix'}
-              icon="check"
-              style={styles.flex}
-              onPress={saveFix}
-            />
-          </View>
-        ) : !choice ? (
+        !choice ? (
           <Button label="Skip this line" icon="chevron" variant="ghost" compact onPress={skip} />
         ) : take && !mic.recording ? (
           <View style={styles.takeRow}>
@@ -554,12 +580,40 @@ export default function RecordScreen() {
           {prompts.map((p, i) => (
             <View
               key={p.id}
-              style={[styles.segment, { backgroundColor: i < index ? theme.accent : i === index ? theme.reward : theme.backgroundSelected }]}
+              style={[
+                styles.segment,
+                {
+                  backgroundColor:
+                    i === index
+                      ? theme.reward
+                      : skippedIds.includes(p.id)
+                        ? theme.textSecondary
+                        : i < index
+                          ? theme.accent
+                          : theme.backgroundSelected,
+                  opacity: skippedIds.includes(p.id) && i !== index ? 0.35 : 1,
+                },
+              ]}
             />
           ))}
         </View>
         <FloatUp trigger={burst} label={lastAmount ? `+${money(lastAmount, 0)}` : 'Saved!'} />
       </View>
+
+      {resumed && !saved.length && !skipped ? (
+        <Appear style={[styles.resume, { backgroundColor: theme.accentSoft }]}>
+          <Icon name="play" size={16} color={theme.accentText} />
+          <T variant="small" color="accentText" style={styles.flex}>
+            Picked up where you left off: {recordedBefore} {recordedBefore === 1 ? 'line' : 'lines'} already done
+            {earnedBefore ? ` (+${money(earnedBefore, 0)})` : ''}.
+          </T>
+          <Pressable accessibilityRole="button" onPress={() => load(true)} hitSlop={8}>
+            <T variant="caption" color="accentText" style={styles.underline}>
+              New lines
+            </T>
+          </Pressable>
+        </Appear>
+      ) : null}
 
       {mic.allowed === false ? (
         <Notice tone="error" text="Real Talk Yaad needs your microphone. Allow it in your phone or browser settings, then come back." />
@@ -602,31 +656,7 @@ export default function RecordScreen() {
               </T>
               {take ? <Icon name="check" color={theme.accentText} /> : topic && !mic.recording ? <Chip tone="soft" label={topic} /> : null}
             </View>
-            {editing ? (
-              <View style={styles.fixBox}>
-                <T variant="caption" color="textSecondary">
-                  AI wrote: {prompt.text}
-                </T>
-                <TextField
-                  label="How you would really say it"
-                  value={draft}
-                  onChangeText={(text) => {
-                    setDraft(text);
-                    setDraftError(null);
-                  }}
-                  error={draftError}
-                  hint="Fix the spelling or words. Keep the same meaning."
-                  multiline
-                  autoFocus
-                  autoCorrect={false}
-                  autoCapitalize="sentences"
-                  maxLength={300}
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={saveFix}
-                />
-              </View>
-            ) : (
+            {(
               <>
                 <ReadAlong text={spokenText} activeWord={activeWord} />
                 {choice?.kind === 'fixed' ? (
@@ -634,13 +664,11 @@ export default function RecordScreen() {
                     <View style={styles.row}>
                       <Icon name="sparkles" size={14} color={theme.textSecondary} />
                       <T variant="overline" color="textSecondary" style={styles.flex}>
-                        AI wrote
+                        What you changed
                       </T>
                       <Chip tone="reward" icon="edit" label="Your fix" />
                     </View>
-                    <T variant="small" color="textSecondary" style={styles.struck}>
-                      {prompt.text}
-                    </T>
+                    <DiffText original={prompt.text} fixed={choice.text} size="small" />
                     {!mic.recording && !take ? (
                       <View style={styles.row}>
                         <Pill label="Edit fix" icon="edit" onPress={openFix} />
@@ -689,7 +717,7 @@ export default function RecordScreen() {
             Tap play to hear it, or tap the waveform to jump around. Happy with it? Save it.
           </T>
         </Appear>
-      ) : editing ? null : !choice ? (
+      ) : !choice ? (
         <Appear style={styles.choiceBlock}>
           <View style={styles.row}>
             <IconTile icon="sparkles" size={28} />
@@ -721,6 +749,18 @@ export default function RecordScreen() {
           <RecordSteps pay={rate ? money(linePay, 0) : null} fixed={choice.kind === 'fixed'} />
         </Appear>
       ) : null}
+      <FixSheet
+        visible={editing}
+        title="Fix the AI's line"
+        label="How you would really say it"
+        original={prompt.text}
+        initial={choice?.kind === 'fixed' ? choice.text : undefined}
+        hint="Fix the spelling or words. Keep the same meaning, then you'll record it."
+        submitLabel={fixRate ? `Use my fix · ${money(fixedPay, 0)} line` : 'Use my fix'}
+        validate={fixProblem}
+        onSubmit={saveFix}
+        onClose={() => setEditing(false)}
+      />
     </Screen>
   );
 }
@@ -745,6 +785,8 @@ const styles = StyleSheet.create({
   micColumn: { alignItems: 'center', gap: 6 },
   takeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   fixBox: { gap: 10 },
+  resume: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 16 },
+  underline: { textDecorationLine: 'underline' },
   center: { textAlign: 'center' },
   struck: { textDecorationLine: 'line-through' },
   originalBox: { gap: 8, padding: 12, borderRadius: 14, borderWidth: 1 },

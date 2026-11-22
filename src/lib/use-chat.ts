@@ -5,6 +5,7 @@ import { uploadRecording } from '@/lib/audio-upload';
 import { useAuth } from '@/lib/auth';
 import {
   correctMessage,
+  endConversation,
   loadConversation,
   sendMessage,
   sendVoiceMessage,
@@ -138,6 +139,22 @@ export function useChat(mode: ChatMode) {
     }
   }, []);
 
+  /** Ends the chat on the server. Returns true when it worked. */
+  const end = useCallback(async () => {
+    if (!conversation) return false;
+    setError(null);
+    setWaiting(true);
+    try {
+      await endConversation(conversation.id);
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setWaiting(false);
+    }
+  }, [conversation]);
+
   const earned = Object.values(corrections).reduce((sum, c) => sum + c.amount_jmd, 0);
 
   return {
@@ -156,5 +173,6 @@ export function useChat(mode: ChatMode) {
     sendVoice,
     voiceStage,
     correct,
+    end,
   };
 }

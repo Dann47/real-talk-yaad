@@ -8,8 +8,9 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useTheme } from '@/hooks/use-theme';
@@ -21,6 +22,12 @@ SplashScreen.preventAutoHideAsync();
 function NavigationTheme({ children }: { children: ReactNode }) {
   const { scheme } = useThemeSettings();
   const theme = useTheme();
+
+  // The phone's own window colour shows for a moment while pages slide. Match it to the theme so
+  // there's no white flash between pages (Android especially).
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(theme.background).catch(() => {});
+  }, [theme.background]);
 
   const navigationTheme = useMemo(() => {
     const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -50,21 +57,31 @@ function NavigationTheme({ children }: { children: ReactNode }) {
  */
 function RootNavigator() {
   const { ready, session, consented } = useAuth();
+  const theme = useTheme();
   if (!ready) return null;
   const signedIn = !!session;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Pages slide in from the right on phones (and back out with a swipe on iPhone).
+        animation: 'slide_from_right',
+        animationDuration: 280,
+        // Paint every page in the theme colour from its first frame (no white while it slides in).
+        contentStyle: { backgroundColor: theme.background },
+      }}>
       {/* Listed first: whenever a screen becomes unavailable (sign in, sign out, consent), the app falls back here. */}
-      <Stack.Screen name="index" />
+      <Stack.Screen name="index" options={{ animation: 'fade' }} />
 
       <Stack.Protected guard={signedIn && consented}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="talk" />
         <Stack.Screen name="voice" />
         <Stack.Screen name="record" />
         <Stack.Screen name="verify" />
         <Stack.Screen name="store" />
+        <Stack.Screen name="edit-profile" />
       </Stack.Protected>
 
       <Stack.Protected guard={signedIn}>
@@ -74,7 +91,7 @@ function RootNavigator() {
       </Stack.Protected>
 
       <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="welcome" />
+        <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
         <Stack.Screen name="verify-email" />

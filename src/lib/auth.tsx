@@ -13,6 +13,9 @@ export type Profile = {
   handle: string | null;
   parish: string | null;
   level: number;
+  week_goal: number;
+  show_on_leaderboard: boolean;
+  created_at: string;
 };
 
 type AuthState = {
@@ -41,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUserData = useCallback(async (id: string) => {
     const [profileResult, consentResult] = await Promise.all([
-      supabase.from('profiles').select('id, display_name, handle, parish, level').eq('id', id).maybeSingle(),
+      supabase.from('profiles').select('id, display_name, handle, parish, level, week_goal, show_on_leaderboard, created_at').eq('id', id).maybeSingle(),
       supabase.from('consents').select('id').eq('user_id', id).eq('terms_version', TERMS_VERSION).limit(1),
     ]);
     setProfile((profileResult.data as Profile | null) ?? null);

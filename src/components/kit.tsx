@@ -2,15 +2,16 @@
  * Real Talk Yaad UI kit: text, buttons, cards, chips, icons, motion and the screen frame.
  * Every colour comes from useTheme(), so light/dark mode and the accent picker apply everywhere.
  */
-import { router, type Href } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import Head from 'expo-router/head';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,10 +23,10 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomTabInset, type ThemeColor } from '@/constants/theme';
+import { type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export const APP_NAME = 'Real Talk Yaad';
@@ -77,6 +78,8 @@ const ICONS = {
   speaker: { ios: 'speaker.wave.2', android: 'volume_up', web: 'volume_up' },
   muted: { ios: 'speaker.slash', android: 'volume_off', web: 'volume_off' },
   trash: { ios: 'trash', android: 'delete', web: 'delete' },
+  close: { ios: 'xmark', android: 'close', web: 'close' },
+  undo: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' },
   chevronUp: { ios: 'chevron.up', android: 'keyboard_arrow_up', web: 'keyboard_arrow_up' },
   headphones: { ios: 'headphones', android: 'headphones', web: 'headphones' },
 } satisfies Record<string, SymbolName>;
@@ -542,9 +545,11 @@ export function Header({
     <View style={styles.header}>
       {back ? <IconButton icon="back" label="Back" onPress={goBack} /> : null}
       <View style={styles.flex}>
-        <T variant="heading">{title}</T>
+        <T variant="heading" numberOfLines={1}>
+          {title}
+        </T>
         {subtitle ? (
-          <T variant="small" color="textSecondary">
+          <T variant="small" color="textSecondary" numberOfLines={1}>
             {subtitle}
           </T>
         ) : null}
@@ -567,6 +572,8 @@ export function Screen({
   scroll = true,
   gap = 16,
   stickToBottom = false,
+  onRefresh,
+  refreshing = false,
 }: {
   title?: string;
   children: ReactNode;
@@ -577,6 +584,9 @@ export function Screen({
   gap?: number;
   /** Chat mode: keep the newest content in view as it grows and when the keyboard opens. */
   stickToBottom?: boolean;
+  /** Pull down to refresh (phones). */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -598,8 +608,28 @@ export function Screen({
       hide.remove();
     };
   }, [isWeb, stickToBottom]);
+  // Page transition. Phones get native slides between stacked pages, so this runs on the web,
+  // and on phone tabs (which switch without any animation of their own). Replays each time the page comes into view.
+  const animateIn = isWeb || tabs;
+  const enter = useSharedValue(animateIn ? 0 : 1);
+  useFocusEffect(
+    useCallback(() => {
+      if (!animateIn) return;
+      enter.value = 0;
+      enter.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
+    }, [animateIn, enter]),
+  );
+  // Phones never fade all the way out (a fully clear page can flash the window colour); the web can.
+  const startOpacity = isWeb ? 0 : 0.6;
+  const enterStyle = useAnimatedStyle(() => ({
+    opacity: startOpacity + (1 - startOpacity) * enter.value,
+    transform: [{ translateY: (1 - enter.value) * 18 }, { scale: 0.985 + enter.value * 0.015 }],
+  }));
+
   const top = isWeb ? (tabs ? 104 : 28) : insets.top + 8;
-  const bottom = tabs ? (isWeb ? 40 : insets.bottom + BottomTabInset + 20) : insets.bottom + 20;
+  // Native tab screens already end above the tab bar (Android) or get it in the safe-area inset (iOS),
+  // so only the safe area plus a little breathing room is needed. Adding the tab bar height again left a big gap.
+  const bottom = isWeb ? 24 : insets.bottom + 16;
 
   const body = <View style={[styles.column, { gap }]}>{children}</View>;
 
@@ -608,6 +638,7 @@ export function Screen({
       // Android draws edge to edge, so it needs padding too or the keyboard covers the footer.
       behavior={isWeb ? undefined : 'padding'}
       style={[styles.flex, { backgroundColor: theme.background }]}>
+      <Animated.View style={[styles.flex, enterStyle]}>
       <Head>
         <title>{title ? `${title} · ${APP_NAME}` : APP_NAME}</title>
       </Head>
@@ -623,6 +654,11 @@ export function Screen({
           style={styles.flex}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+            ) : undefined
+          }
           contentContainerStyle={{
             alignItems: 'center',
             paddingTop: header ? 8 : top,
@@ -651,6 +687,7 @@ export function Screen({
           <View style={styles.column}>{footer}</View>
         </View>
       ) : null}
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 }
