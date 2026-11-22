@@ -74,6 +74,11 @@ const ICONS = {
   trend: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
   store: { ios: 'storefront', android: 'storefront', web: 'storefront' },
   bolt: { ios: 'bolt', android: 'bolt', web: 'bolt' },
+  speaker: { ios: 'speaker.wave.2', android: 'volume_up', web: 'volume_up' },
+  muted: { ios: 'speaker.slash', android: 'volume_off', web: 'volume_off' },
+  trash: { ios: 'trash', android: 'delete', web: 'delete' },
+  chevronUp: { ios: 'chevron.up', android: 'keyboard_arrow_up', web: 'keyboard_arrow_up' },
+  headphones: { ios: 'headphones', android: 'headphones', web: 'headphones' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;

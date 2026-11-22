@@ -36,7 +36,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Real Talk Yaad to use your microphone for voice chats and recordings."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

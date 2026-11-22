@@ -40,7 +40,6 @@ export type Task = {
   id: string;
   title: string;
   detail: string;
-  pay: string;
   icon: IconName;
   tone: 'accent' | 'reward';
   href: Href;
@@ -52,8 +51,7 @@ export const tasks: Task[] = [
     id: 'talk',
     tone: 'accent',
     title: 'Talk with the AI',
-    detail: 'Topic: Sunday dinner · 10 min',
-    pay: 'up to J$150',
+    detail: 'Pick a topic and chat in Patois',
     icon: 'chat',
     href: '/talk' as Href,
     description: 'Chat in Patois and correct the AI when it gets it wrong.',
@@ -62,8 +60,7 @@ export const tasks: Task[] = [
     id: 'voice',
     tone: 'accent',
     title: 'Voice chat',
-    detail: 'Topic: At the market · 5 min',
-    pay: 'up to J$90',
+    detail: 'Talk out loud in Patois',
     icon: 'mic',
     href: '/voice' as Href,
     description: 'Talk out loud with the AI and fix what it heard.',
@@ -71,9 +68,8 @@ export const tasks: Task[] = [
   {
     id: 'record',
     tone: 'reward',
-    title: 'Record: Market day',
-    detail: '10 short lines · 4 min',
-    pay: 'J$40',
+    title: 'Record lines',
+    detail: 'Read 10 short Patois lines aloud',
     icon: 'waveform',
     href: '/record' as Href,
     description: 'Read short Patois lines aloud.',
@@ -83,7 +79,6 @@ export const tasks: Task[] = [
     tone: 'accent',
     title: 'Verify corrections',
     detail: '10 items · 5 min',
-    pay: 'J$60',
     icon: 'check',
     href: '/verify' as Href,
     description: "Check other people's corrections. Your vote is compared with the group.",
@@ -93,24 +88,10 @@ export const tasks: Task[] = [
     tone: 'reward',
     title: 'Teach: describe a clip',
     detail: '1 video · 1 min',
-    pay: 'J$25',
     icon: 'video',
     href: '/feed' as Href,
     description: "Say what's happening in a video, in Patois.",
   },
-];
-
-export const recordLines = [
-  'Wah gwaan, how yuh do?',
-  'Mi deh yah, likkle bit tired still.',
-  'Mi a go a town fi buy likkle someting. Soon come back.',
-  'Di bus tek long fi come dis mawnin.',
-  'Gimme two a di mango dem, please.',
-  'How much fi di breadfruit?',
-  'Rain a fall, so mi naa go out.',
-  'Wi a go beach pon Sunday.',
-  'Mi granny cook di bes rice an peas.',
-  'Walk good, mi wi check yuh lata.',
 ];
 
 export const verifyItems = [

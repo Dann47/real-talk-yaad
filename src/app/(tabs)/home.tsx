@@ -17,6 +17,7 @@ import {
 } from '@/components/kit';
 import { money, tasks, user, wallet } from '@/data/sample';
 import { useTheme } from '@/hooks/use-theme';
+import { payLabel, useRates } from '@/lib/rates';
 import { displayName, useAuth } from '@/lib/auth';
 
 function greeting() {
@@ -36,6 +37,7 @@ const QUICK_LABEL: Record<(typeof QUICK)[number], string> = {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const rates = useRates();
   const { profile, user: account } = useAuth();
   const name = displayName(profile, account);
   const weekProgress = wallet.thisWeek / user.weekGoal;
@@ -91,7 +93,7 @@ export default function HomeScreen() {
             <Pressable
               key={id}
               accessibilityRole="button"
-              accessibilityLabel={`${task.title}, ${task.pay}`}
+              accessibilityLabel={payLabel(rates[task.id]) ? `${task.title}, ${payLabel(rates[task.id])}` : task.title}
               onPress={() => router.push(task.href)}
               style={({ pressed }) => [
                 styles.quick,
@@ -135,7 +137,7 @@ export default function HomeScreen() {
         .slice(0, 3)
         .map((task, i) => (
           <Appear key={task.id} index={5 + i}>
-            <ListRow icon={task.icon} tone={task.tone} title={task.title} subtitle={task.detail} value={task.pay} href={task.href} />
+            <ListRow icon={task.icon} tone={task.tone} title={task.title} subtitle={task.detail} value={payLabel(rates[task.id])} href={task.href} />
           </Appear>
         ))}
     </Screen>

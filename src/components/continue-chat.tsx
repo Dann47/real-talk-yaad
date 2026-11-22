@@ -35,10 +35,10 @@ export function ContinueChat() {
   if (!chat) return null;
   return (
     <ListRow
-      icon="chat"
-      title="Continue your chat"
+      icon={chat.mode === 'voice' ? 'mic' : 'chat'}
+      title={chat.mode === 'voice' ? 'Continue your voice chat' : 'Continue your chat'}
       subtitle={`${chat.topicTitle} · ${chat.messageCount} messages · ${ago(chat.startedAt)}`}
-      href={`/talk?conversation=${chat.id}` as Href}
+      href={`/${chat.mode === 'voice' ? 'voice' : 'talk'}?conversation=${chat.id}` as Href}
     />
   );
 }

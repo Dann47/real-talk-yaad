@@ -3,8 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { ContinueChat } from '@/components/continue-chat';
 import { Appear, Card, Chip, IconTile, ListRow, Screen, T } from '@/components/kit';
 import { money, tasks, wallet } from '@/data/sample';
+import { payLabel, useRates } from '@/lib/rates';
 
 export default function WorkScreen() {
+  const rates = useRates();
   return (
     <Screen tabs title="Work">
       <Appear>
@@ -34,7 +36,7 @@ export default function WorkScreen() {
 
       {tasks.map((task, i) => (
         <Appear key={task.id} index={2 + i} style={styles.task}>
-          <ListRow icon={task.icon} tone={task.tone} title={task.title} subtitle={task.detail} value={task.pay} href={task.href} />
+          <ListRow icon={task.icon} tone={task.tone} title={task.title} subtitle={task.detail} value={payLabel(rates[task.id])} href={task.href} />
           <T variant="small" color="textSecondary" style={styles.description}>
             {task.description}
           </T>

@@ -1,10 +1,15 @@
 // Real Talk Yaad: Talk with the AI.
 // The app calls this function; it checks the user, talks to the AI model and saves everything.
-// Actions: start (new conversation), send (user message → AI reply), correct (fix an AI reply).
+// Actions:
+//   start   — new conversation (mode: text or voice)
+//   send    — typed message → AI reply
+//   voice   — recorded message in Storage → speech-to-text → AI reply
+//   correct — fix an AI reply, or fix the words speech-to-text heard
+//   record_lines — a fresh set of lines to read aloud: AI-written, plus hand-checked quality-check lines
 //
-// Secrets (npx supabase secrets set ...):
+// Secrets (npm run secrets:dev):
 //   AI_API_KEY, AI_BASE_URL (e.g. https://api.deepinfra.com/v1/openai), AI_MODEL (e.g. google/gemma-4-31B-it)
-//   DAILY_MESSAGE_LIMIT (optional, default 100)
+//   STT_URL (optional, default DeepInfra Whisper large v3 turbo), DAILY_MESSAGE_LIMIT (optional, default 100)
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase automatically.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -17,6 +22,14 @@ const AI_API_KEY = Deno.env.get('AI_API_KEY') ?? '';
 const AI_BASE_URL = (Deno.env.get('AI_BASE_URL') ?? 'https://api.deepinfra.com/v1/openai').replace(/\/$/, '');
 const AI_MODEL = Deno.env.get('AI_MODEL') ?? 'google/gemma-4-31B-it';
 const DAILY_LIMIT = Number(Deno.env.get('DAILY_MESSAGE_LIMIT') ?? '100');
+const STT_URL = Deno.env.get('STT_URL') ?? 'https://api.deepinfra.com/v1/inference/openai/whisper-large-v3-turbo';
+const MESSAGE_FIELDS = 'id, role, content, flagged, audio_path, created_at';
+
+// Record lines: lines per set, how many of them are hand-checked quality checks, and a daily cap.
+// The AI writes the rest. If there aren't enough unread check lines, the AI fills the gap.
+const LINES_PER_SET = 10;
+const CHECK_LINES_PER_SET = 3;
+const AI_LINES_PER_DAY = 140;
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -39,10 +52,14 @@ function json(body: unknown, status = 200) {
 }
 
 type Topic = { id: string; title: string; guidance: string };
+type Mode = 'text' | 'voice';
 type ChatTurn = { role: 'system' | 'user' | 'assistant'; content: string };
 
-function systemPrompt(topic: Topic) {
+function systemPrompt(topic: Topic, mode: Mode) {
   return [
+    ...(mode === 'voice'
+      ? ['This is a spoken conversation: your words will be read aloud, so write the way people speak, with no symbols.']
+      : []),
     'You are a friendly Jamaican having a casual chat on a phone app called Real Talk Yaad.',
     'Always speak Jamaican Patois (Patwa) the way people really talk in Jamaica, even if the user writes in English.',
     'Keep every reply short: one or two sentences, under 40 words.',
@@ -54,12 +71,17 @@ function systemPrompt(topic: Topic) {
   ].join(' ');
 }
 
-async function askModel(turns: ChatTurn[]): Promise<string> {
+async function askModel(turns: ChatTurn[], options: { maxTokens?: number; temperature?: number } = {}): Promise<string> {
   if (!AI_API_KEY) throw new HttpError(500, 'The AI is not set up yet (missing AI_API_KEY).');
   const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${AI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: AI_MODEL, messages: turns, max_tokens: 160, temperature: 0.8 }),
+    body: JSON.stringify({
+      model: AI_MODEL,
+      messages: turns,
+      max_tokens: options.maxTokens ?? 160,
+      temperature: options.temperature ?? 0.8,
+    }),
   });
   if (!response.ok) {
     console.error('AI error', response.status, await response.text());
@@ -71,6 +93,41 @@ async function askModel(turns: ChatTurn[]): Promise<string> {
   const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim().slice(0, 2000);
   if (!text) throw new HttpError(502, 'The AI sent an empty reply. Please try again.');
   return text;
+}
+
+async function transcribe(audio: Blob, fileName: string): Promise<string> {
+  const form = new FormData();
+  form.append('audio', audio, fileName);
+  const response = await fetch(STT_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${AI_API_KEY}` },
+    body: form,
+  });
+  if (!response.ok) {
+    console.error('Speech-to-text error', response.status, await response.text());
+    throw new HttpError(502, 'We could not hear that clearly. Please try again.');
+  }
+  const data = await response.json();
+  return String(data?.text ?? '').trim();
+}
+
+/** How much a new correction in this conversation earns: the rate, until the per-chat limit is reached. */
+async function correctionAmount(conversationId: string, mode: Mode): Promise<number> {
+  const { data: rate } = await admin
+    .from('task_rates')
+    .select('amount_jmd, max_paid_per_session, active')
+    .eq('id', mode === 'voice' ? 'voice' : 'talk')
+    .maybeSingle();
+  if (!rate?.active) return 0;
+  if (rate.max_paid_per_session) {
+    const { count } = await admin
+      .from('corrections')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .gt('amount_jmd', 0);
+    if ((count ?? 0) >= rate.max_paid_per_session) return 0;
+  }
+  return Number(rate.amount_jmd);
 }
 
 async function requireUser(req: Request) {
@@ -110,7 +167,7 @@ async function loadTopic(topicId?: string): Promise<Topic> {
 async function ownConversation(userId: string, conversationId: string) {
   const { data } = await admin
     .from('conversations')
-    .select('id, topic_id, ended_at')
+    .select('id, topic_id, mode, ended_at')
     .eq('id', conversationId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -125,43 +182,35 @@ function cleanText(value: unknown, label: string) {
   return text;
 }
 
-async function start(userId: string, body: { topicId?: string }) {
+async function start(userId: string, body: { topicId?: string; mode?: Mode }) {
   await checkDailyLimit(userId);
+  const mode: Mode = body.mode === 'voice' ? 'voice' : 'text';
   const topic = await loadTopic(body.topicId);
   const { data: conversation, error } = await admin
     .from('conversations')
-    .insert({ user_id: userId, topic_id: topic.id, model: AI_MODEL })
-    .select('id, topic_id, created_at')
+    .insert({ user_id: userId, topic_id: topic.id, model: AI_MODEL, mode })
+    .select('id, topic_id, mode, created_at')
     .single();
   if (error) throw error;
 
   const opening = await askModel([
-    { role: 'system', content: systemPrompt(topic) },
+    { role: 'system', content: systemPrompt(topic, mode) },
     { role: 'user', content: 'Start the conversation with a warm greeting and one question about the topic.' },
   ]);
   const { data: message, error: saveError } = await admin
     .from('messages')
     .insert({ conversation_id: conversation.id, user_id: userId, role: 'assistant', content: opening })
-    .select('id, role, content, flagged, created_at')
+    .select(MESSAGE_FIELDS)
     .single();
   if (saveError) throw saveError;
 
   return { conversation: { ...conversation, topic }, messages: [message] };
 }
 
-async function send(userId: string, body: { conversationId?: string; text?: string }) {
-  const text = cleanText(body.text, 'Your message');
-  const conversation = await ownConversation(userId, String(body.conversationId ?? ''));
-  if (conversation.ended_at) throw new HttpError(400, 'This conversation has ended. Start a new one.');
-  await checkDailyLimit(userId);
+type OwnedConversation = { id: string; topic_id: string | null; mode: Mode; ended_at: string | null };
 
-  const { data: userMessage, error } = await admin
-    .from('messages')
-    .insert({ conversation_id: conversation.id, user_id: userId, role: 'user', content: text })
-    .select('id, role, content, flagged, created_at')
-    .single();
-  if (error) throw error;
-
+/** Builds the context from recent messages, asks the model and saves its reply. */
+async function replyTo(userId: string, conversation: OwnedConversation) {
   const { data: history } = await admin
     .from('messages')
     .select('role, content')
@@ -170,7 +219,7 @@ async function send(userId: string, body: { conversationId?: string; text?: stri
     .limit(HISTORY_LIMIT);
   const topic = await loadTopic(conversation.topic_id ?? undefined);
   const turns: ChatTurn[] = [
-    { role: 'system', content: systemPrompt(topic) },
+    { role: 'system', content: systemPrompt(topic, conversation.mode) },
     ...(history ?? []).reverse().map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   ];
 
@@ -178,23 +227,82 @@ async function send(userId: string, body: { conversationId?: string; text?: stri
   const { data: reply, error: replyError } = await admin
     .from('messages')
     .insert({ conversation_id: conversation.id, user_id: userId, role: 'assistant', content: replyText })
-    .select('id, role, content, flagged, created_at')
+    .select(MESSAGE_FIELDS)
     .single();
   if (replyError) throw replyError;
+  return reply;
+}
 
-  return { userMessage, reply };
+async function openConversation(userId: string, conversationId: unknown) {
+  const conversation = (await ownConversation(userId, String(conversationId ?? ''))) as OwnedConversation;
+  if (conversation.ended_at) throw new HttpError(400, 'This conversation has ended. Start a new one.');
+  await checkDailyLimit(userId);
+  return conversation;
+}
+
+async function send(userId: string, body: { conversationId?: string; text?: string }) {
+  const text = cleanText(body.text, 'Your message');
+  const conversation = await openConversation(userId, body.conversationId);
+
+  const { data: userMessage, error } = await admin
+    .from('messages')
+    .insert({ conversation_id: conversation.id, user_id: userId, role: 'user', content: text })
+    .select(MESSAGE_FIELDS)
+    .single();
+  if (error) throw error;
+
+  return { userMessage, reply: await replyTo(userId, conversation) };
+}
+
+async function voice(userId: string, body: { conversationId?: string; audioPath?: string }) {
+  const conversation = await openConversation(userId, body.conversationId);
+  const audioPath = String(body.audioPath ?? '');
+  // Recordings must sit in this user's own folder for this conversation.
+  if (!audioPath.startsWith(`${userId}/${conversation.id}/`)) throw new HttpError(400, 'That recording is not yours.');
+
+  const { data: audio, error: downloadError } = await admin.storage.from('voice').download(audioPath);
+  if (downloadError || !audio) throw new HttpError(400, 'The recording did not upload. Please try again.');
+  if (audio.size < 1000) throw new HttpError(422, 'That was too short. Hold the button while you talk.');
+
+  const heard = (await transcribe(audio, audioPath.split('/').pop() ?? 'voice.m4a')).slice(0, 2000);
+  if (!heard) throw new HttpError(422, 'We could not hear any words. Try again a little closer to the phone.');
+
+  const { data: userMessage, error } = await admin
+    .from('messages')
+    .insert({
+      conversation_id: conversation.id,
+      user_id: userId,
+      role: 'user',
+      content: heard,
+      transcript_raw: heard,
+      audio_path: audioPath,
+    })
+    .select(MESSAGE_FIELDS)
+    .single();
+  if (error) throw error;
+
+  return { userMessage, reply: await replyTo(userId, conversation) };
 }
 
 async function correct(userId: string, body: { messageId?: number; text?: string }) {
   const corrected = cleanText(body.text, 'Your correction');
   const { data: message } = await admin
     .from('messages')
-    .select('id, conversation_id, role, content')
+    .select('id, conversation_id, role, content, audio_path, transcript_raw, conversations(mode)')
     .eq('id', Number(body.messageId))
     .eq('user_id', userId)
     .maybeSingle();
-  if (!message || message.role !== 'assistant') throw new HttpError(404, 'You can only correct the AI\'s replies.');
-  if (corrected === message.content) throw new HttpError(400, 'Your correction is the same as the original.');
+  if (!message) throw new HttpError(404, 'That message was not found.');
+
+  // AI replies can be corrected; so can the words speech-to-text heard in the user's own recordings.
+  const kind = message.role === 'assistant' ? 'ai_reply' : message.audio_path ? 'transcript' : null;
+  if (!kind) throw new HttpError(400, 'You can only correct the AI\'s replies or what we heard you say.');
+  const original = kind === 'transcript' ? (message.transcript_raw ?? message.content) : message.content;
+  if (corrected === original) throw new HttpError(400, 'Your correction is the same as the original.');
+
+  const joined = message.conversations as { mode: Mode } | { mode: Mode }[] | null;
+  const mode = (Array.isArray(joined) ? joined[0]?.mode : joined?.mode) ?? 'text';
+  const amount = await correctionAmount(message.conversation_id, mode);
 
   const { data: correction, error } = await admin
     .from('corrections')
@@ -202,17 +310,130 @@ async function correct(userId: string, body: { messageId?: number; text?: string
       message_id: message.id,
       conversation_id: message.conversation_id,
       user_id: userId,
-      original: message.content,
+      original,
       corrected,
+      kind,
+      amount_jmd: amount,
     })
-    .select('id, message_id, corrected, status, created_at')
+    .select('id, message_id, corrected, status, kind, amount_jmd, created_at')
     .single();
   if (error) {
     if (error.code === '23505') throw new HttpError(409, 'You already corrected that reply.');
     throw error;
   }
-  await admin.from('messages').update({ flagged: true }).eq('id', message.id);
+  // A fixed transcript becomes the message text, so the AI sees the right words from now on.
+  await admin
+    .from('messages')
+    .update(kind === 'transcript' ? { flagged: true, content: corrected } : { flagged: true })
+    .eq('id', message.id);
   return { correction };
+}
+
+/* ---------- Record lines ---------- */
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+/** Pulls the lines out of the model's answer, whether it sent JSON or a plain list. */
+function parseLines(raw: string): string[] {
+  let lines: unknown = null;
+  const json = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/)?.[0];
+  if (json) {
+    try {
+      const parsed = JSON.parse(json);
+      lines = Array.isArray(parsed) ? parsed : parsed?.lines;
+    } catch {
+      lines = null;
+    }
+  }
+  const list = Array.isArray(lines) ? lines : raw.split('\n');
+  return list
+    .map((line) => String(line).replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/^["']|["']$/g, '').trim())
+    .filter((line) => {
+      const words = line.split(/\s+/).length;
+      return words >= 3 && words <= 16 && line.length <= 200;
+    });
+}
+
+async function recordLines(userId: string, body: { topicId?: string }) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count } = await admin
+    .from('record_prompts')
+    .select('id', { count: 'exact', head: true })
+    .eq('created_for', userId)
+    .gte('created_at', since);
+  if ((count ?? 0) >= AI_LINES_PER_DAY) {
+    throw new HttpError(429, 'You have read a lot of lines today. Come back tomorrow for more!');
+  }
+
+  const topic = await loadTopic(body.topicId);
+
+  // Hand-checked lines this user has not recorded yet: hidden quality checks.
+  const [{ data: curated }, { data: done }] = await Promise.all([
+    admin.from('record_prompts').select('id, text').eq('source', 'curated').eq('active', true),
+    admin.from('recordings').select('prompt_id').eq('user_id', userId),
+  ]);
+  const recorded = new Set((done ?? []).map((row) => row.prompt_id));
+  const checks = shuffle((curated ?? []).filter((row) => !recorded.has(row.id))).slice(0, CHECK_LINES_PER_SET);
+  const wanted = LINES_PER_SET - checks.length;
+
+  // Skip anything this user already has, and repeats within the batch.
+  const { data: existing } = await admin
+    .from('record_prompts')
+    .select('text')
+    .or(`source.eq.curated,created_for.eq.${userId}`);
+  const seen = new Set((existing ?? []).map((row) => row.text.toLowerCase()));
+  const fresh: string[] = [];
+
+  // Models sometimes return fewer lines than asked, so ask again (at most twice) until the set is full.
+  for (let attempt = 0; attempt < 3 && fresh.length < wanted; attempt++) {
+    const raw = await askModel(
+      [
+        {
+          role: 'system',
+          content: [
+            'You write short everyday sentences in Jamaican Patois (Patwa) for people to read aloud.',
+            'Write the way Jamaicans really talk, using everyday spelling such as mi, yuh, di, dem, nuh, wah, fi, pon, cyaan.',
+            'Each sentence: 4 to 14 words, natural, something a person would actually say. Vary the sentences.',
+            'No names of real people, no swearing, nothing sexual, violent or hateful.',
+            `Reply with JSON only, like {"lines": ["...", "..."]}, with exactly ${wanted + 5} lines.`,
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: `Topic: ${topic.title}. ${topic.guidance}${fresh.length ? ` Do not repeat these: ${fresh.join(' | ')}` : ''}`,
+        },
+      ],
+      { maxTokens: 900, temperature: 0.95 },
+    );
+    for (const line of parseLines(raw)) {
+      const key = line.toLowerCase();
+      if (fresh.length < wanted && !seen.has(key)) {
+        seen.add(key);
+        fresh.push(line);
+      }
+    }
+  }
+
+  let aiPrompts: { id: number; text: string }[] = [];
+  if (fresh.length) {
+    const { data, error } = await admin
+      .from('record_prompts')
+      .insert(fresh.map((text) => ({ text, source: 'ai', topic_id: topic.id, created_for: userId })))
+      .select('id, text');
+    if (error) throw error;
+    aiPrompts = data ?? [];
+  }
+
+  const prompts = shuffle([...aiPrompts, ...checks]);
+  if (!prompts.length) throw new HttpError(502, 'We could not write new lines right now. Please try again.');
+  return { topic, prompts };
 }
 
 Deno.serve(async (req) => {
@@ -227,8 +448,12 @@ Deno.serve(async (req) => {
         return json(await start(user.id, body));
       case 'send':
         return json(await send(user.id, body));
+      case 'voice':
+        return json(await voice(user.id, body));
       case 'correct':
         return json(await correct(user.id, body));
+      case 'record_lines':
+        return json(await recordLines(user.id, body));
       default:
         return json({ error: 'Unknown action.' }, 400);
     }
